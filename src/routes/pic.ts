@@ -86,10 +86,28 @@ pic.delete('/pics/:id', async (c) => {
 pic.put('/pics/:nbm', async (c) => {
   const nbm = c.req.param('nbm');
   try {
-    const { institution, email_instansi } = await c.req.json();
+    const { institution, email_instansi, surat_tugas, surat_permohonan } = await c.req.json();
     if (!institution || !email_instansi) return c.json({ success: false, message: "Data tidak lengkap" }, 400);
     
-    await c.env.DB.prepare(`UPDATE pics SET institution = ?, email_instansi = ? WHERE nbm = ? OR email = ?`).bind(institution, email_instansi, nbm, nbm).run();
+    // Bangun query update secara dinamis
+    let updateFields = ['institution = ?', 'email_instansi = ?'];
+    let values: any[] = [institution, email_instansi];
+    
+    if (surat_tugas !== undefined) {
+      updateFields.push('surat_tugas = ?');
+      values.push(surat_tugas);
+    }
+    
+    if (surat_permohonan !== undefined) {
+      updateFields.push('surat_permohonan = ?');
+      values.push(surat_permohonan);
+    }
+    
+    values.push(nbm, nbm); // Untuk kondisi WHERE
+    
+    const query = `UPDATE pics SET ${updateFields.join(', ')} WHERE nbm = ? OR email = ?`;
+    await c.env.DB.prepare(query).bind(...values).run();
+    
     return c.json({ success: true, message: "Profil instansi berhasil diperbarui" });
   } catch (e: any) { return c.json({ success: false, error: e.message }, 500); }
 })

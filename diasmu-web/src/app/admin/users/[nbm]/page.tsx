@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { apiUrl, authHeaders } from "@/lib/security";
 import type { PicInfo, Aset } from "@/types/diasmu";
+import { revalidatePath } from "next/cache";
 
 export const runtime = "edge";
 
@@ -50,6 +51,44 @@ export default async function PicProfilePage(props: Props) {
         <Link href="/admin/users" className="ui-button ui-button-primary mt-6">Kembali</Link>
       </div>
     );
+  }
+
+  // SERVER ACTION: Admin upload berkas susulan
+  async function adminUploadBerkas(formData: FormData) {
+    "use server";
+    const fileTugas = formData.get("suratTugas") as File | null;
+    const filePermohonan = formData.get("suratPermohonan") as File | null;
+
+    let suratTugasName = undefined;
+    let suratPermohonanName = undefined;
+
+    if (fileTugas && fileTugas.size > 0) {
+      const up1 = new FormData(); up1.append("document", fileTugas);
+      const r1 = await fetch(apiUrl("/api/upload"), { method: "POST", body: up1, headers: authHeaders() });
+      if (r1.ok) suratTugasName = (await r1.json()).filename;
+    }
+    if (filePermohonan && filePermohonan.size > 0) {
+      const up2 = new FormData(); up2.append("document", filePermohonan);
+      const r2 = await fetch(apiUrl("/api/upload"), { method: "POST", body: up2, headers: authHeaders() });
+      if (r2.ok) suratPermohonanName = (await r2.json()).filename;
+    }
+
+    if (suratTugasName || suratPermohonanName) {
+      const payload: any = { 
+        institution: data?.institution || "-",
+        email_instansi: data?.email_instansi || "-"
+      };
+      if (suratTugasName) payload.surat_tugas = suratTugasName;
+      if (suratPermohonanName) payload.surat_permohonan = suratPermohonanName;
+
+      await fetch(apiUrl(`/api/pics/${encodedId}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(payload)
+      });
+      
+      revalidatePath(`/admin/users/${encodedId}`);
+    }
   }
 
   return (
@@ -101,22 +140,43 @@ export default async function PicProfilePage(props: Props) {
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Nomor Telepon</p>
               <p className="font-semibold text-slate-700">{data.phone || '-'}</p>
             </div>
-            <div className="flex gap-3 mt-2">
-              {data.surat_tugas ? (
-                <a href={apiUrl(`/public/files/${data.surat_tugas}`)} target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                  Surat Tugas
-                </a>
-              ) : (
-                <span className="flex items-center gap-2 bg-slate-100 text-slate-400 border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold cursor-not-allowed">Surat Tugas (Tidak Ada)</span>
-              )}
+            <div className="flex flex-col gap-3 mt-2">
+              <div className="flex gap-3">
+                {data.surat_tugas ? (
+                  <a href={apiUrl(`/public/files/${data.surat_tugas}`)} target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    Surat Tugas
+                  </a>
+                ) : (
+                  <span className="flex items-center gap-2 bg-slate-100 text-slate-400 border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold cursor-not-allowed">Surat Tugas (Tidak Ada)</span>
+                )}
+                
+                {data.surat_permohonan ? (
+                  <a href={apiUrl(`/public/files/${data.surat_permohonan}`)} target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    Surat Permohonan
+                  </a>
+                ) : (
+                  <span className="flex items-center gap-2 bg-slate-100 text-slate-400 border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold cursor-not-allowed">Permohonan (Tidak Ada)</span>
+                )}
+              </div>
               
-              {data.surat_permohonan && (
-                <a href={apiUrl(`/public/files/${data.surat_permohonan}`)} target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                  Surat Permohonan
-                </a>
-              )}
+              <form action={adminUploadBerkas} className="mt-4 p-4 border border-slate-200 rounded-xl bg-white shadow-sm space-y-3">
+                <p className="text-xs font-bold text-slate-800 uppercase tracking-widest">Admin: Upload Berkas Susulan</p>
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Surat Tugas</label>
+                    <input type="file" name="suratTugas" accept=".pdf,.png,.jpg,.jpeg" className="w-full text-xs border bg-slate-50 rounded-lg file:bg-slate-200 file:text-slate-700 file:border-0 file:py-1 file:px-3 file:rounded-lg file:font-bold file:mr-3 hover:file:bg-slate-300 transition-colors cursor-pointer" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Surat Permohonan</label>
+                    <input type="file" name="suratPermohonan" accept=".pdf,.png,.jpg,.jpeg" className="w-full text-xs border bg-slate-50 rounded-lg file:bg-slate-200 file:text-slate-700 file:border-0 file:py-1 file:px-3 file:rounded-lg file:font-bold file:mr-3 hover:file:bg-slate-300 transition-colors cursor-pointer" />
+                  </div>
+                </div>
+                <button type="submit" className="w-full bg-[#004282] text-white font-bold uppercase tracking-widest text-[10px] py-2 rounded-lg shadow-sm hover:bg-blue-900 transition-all active:scale-95">
+                  Upload Berkas
+                </button>
+              </form>
             </div>
           </div>
         </div>

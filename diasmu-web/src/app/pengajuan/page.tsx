@@ -205,7 +205,14 @@ export default async function PengajuanPage(props: Props) {
               
               {activeTab === 'profil' && userNbm && !staffCheck.isStaff && (
                 <div className="max-w-2xl">
-                  <DashboardProfile userName={userName} userNbm={userNbm} institution={picInfo.data?.institution || ""} emailInstansi={picInfo.data?.email_instansi || ""} />
+                  <DashboardProfile 
+                    userName={userName} 
+                    userNbm={userNbm} 
+                    institution={picInfo.data?.institution || ""} 
+                    emailInstansi={picInfo.data?.email_instansi || ""} 
+                    suratTugas={picInfo.data?.surat_tugas || ""}
+                    suratPermohonan={picInfo.data?.surat_permohonan || ""}
+                  />
                 </div>
               )}
 
