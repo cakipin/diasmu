@@ -5,6 +5,7 @@ import { apiUrl, authHeaders } from "@/lib/security";
 import type { PicInfo, Aset } from "@/types/diasmu";
 import { revalidatePath } from "next/cache";
 import UploadFormWrapper from "@/components/UploadFormWrapper";
+import { adminUploadBerkasAction } from "@/app/actions/upload";
 
 export const runtime = "edge";
 
@@ -54,44 +55,12 @@ export default async function PicProfilePage(props: Props) {
     );
   }
 
-  // SERVER ACTION: Admin upload berkas susulan
-  async function adminUploadBerkas(formData: Record<string, any>) {
-    "use server";
-    
-    try {
-      const suratTugasName = formData.suratTugasName as string | undefined;
-      const suratPermohonanName = formData.suratPermohonanName as string | undefined;
-
-      if (suratTugasName || suratPermohonanName) {
-        const payload: any = { 
-          institution: data?.institution || "-",
-          email_instansi: data?.email_instansi || "-"
-        };
-        if (suratTugasName) payload.surat_tugas = suratTugasName;
-        if (suratPermohonanName) payload.surat_permohonan = suratPermohonanName;
-
-        const res = await fetch(apiUrl(`/api/pics/${encodedId}`), {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify(payload)
-        });
-        
-        if (!res.ok) {
-           const errText = await res.text();
-           return { success: false, error: `Gagal update DB: ${res.status} ${errText}` };
-        }
-        
-        try {
-          revalidatePath(`/admin/users/${encodedId}`);
-        } catch (e: any) {
-           console.warn("revalidatePath failed (Edge issue):", e);
-        }
-      }
-      return { success: true };
-    } catch (err: any) {
-      return { success: false, error: err.message || String(err) };
-    }
-  }
+  // Bind closure variables to the standalone Server Action
+  const handleUpload = adminUploadBerkasAction.bind(null, {
+    encodedId,
+    institution: data?.institution,
+    email_instansi: data?.email_instansi
+  });
 
   return (
     <div className="ui-profile-page animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
@@ -163,7 +132,7 @@ export default async function PicProfilePage(props: Props) {
                 )}
               </div>
               
-              <UploadFormWrapper serverAction={adminUploadBerkas} className="mt-4 p-4 border border-slate-200 rounded-xl bg-white shadow-sm space-y-3">
+              <UploadFormWrapper serverAction={handleUpload} className="mt-4 p-4 border border-slate-200 rounded-xl bg-white shadow-sm space-y-3">
                 <p className="text-xs font-bold text-slate-800 uppercase tracking-widest">Admin: Upload Berkas Susulan</p>
                 <div className="space-y-2">
                   <div>

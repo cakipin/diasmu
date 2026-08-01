@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { apiUrl, auditLog, jsonAuthHeaders } from "@/lib/security";
 import UploadFormWrapper from "@/components/UploadFormWrapper";
+import { updateProfileInstansiAction } from "@/app/actions/upload";
 
 interface ProfileProps {
   userName: string;
@@ -12,49 +13,10 @@ interface ProfileProps {
 }
 
 export default function DashboardProfile({ userName, userNbm, institution, emailInstansi, suratTugas, suratPermohonan }: ProfileProps) {
-  
-  // SERVER ACTION: Update Profil Mandiri terisolasi di komponen ini
-  async function updateProfileInstansi(formData: Record<string, any>) {
-    "use server";
-    try {
-      const newInstitution = formData.institution as string;
-      const newEmailInstansi = formData.emailInstansi as string;
-      
-      const suratTugasName = formData.suratTugasName as string | undefined;
-      const suratPermohonanName = formData.suratPermohonanName as string | undefined;
-
-      const payload: any = {
-        institution: newInstitution,
-        email_instansi: newEmailInstansi,
-      };
-      
-      if (suratTugasName) payload.surat_tugas = suratTugasName;
-      if (suratPermohonanName) payload.surat_permohonan = suratPermohonanName;
-
-      const res = await fetch(apiUrl(`/api/pics/${userNbm}`), {
-        method: "PUT",
-        headers: jsonAuthHeaders(),
-        body: JSON.stringify(payload)
-      });
-      
-      if (!res.ok) {
-         const errText = await res.text();
-         return { success: false, error: `Gagal update profil: ${res.status} ${errText}` };
-      }
-      
-      await auditLog("pic.profile.updated", { actor: userNbm, institution: newInstitution });
-      
-      try {
-        revalidatePath("/pengajuan");
-      } catch (e) {
-        console.warn("revalidatePath failed:", e);
-      }
-      
-      return { success: true };
-    } catch (err: any) {
-      return { success: false, error: err.message || String(err) };
-    }
-  }
+  // Bind closure variables to the standalone Server Action
+  const handleUpload = updateProfileInstansiAction.bind(null, {
+    userNbm
+  });
 
   return (
     <section className="bg-white p-6 rounded-3xl shadow-xl border border-slate-200">
@@ -65,7 +27,7 @@ export default function DashboardProfile({ userName, userNbm, institution, email
         <h3 className="text-base font-black text-slate-800 uppercase tracking-tight italic">Profil Penanggung Jawab</h3>
       </div>
 
-      <UploadFormWrapper serverAction={updateProfileInstansi} className="space-y-4">
+      <UploadFormWrapper serverAction={handleUpload} className="space-y-4">
         <div>
           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Nama Operator</label>
           <p className="text-sm font-bold text-slate-700 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">{userName}</p>
