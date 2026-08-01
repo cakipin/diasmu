@@ -1,7 +1,5 @@
-import { revalidatePath } from "next/cache";
 import { apiUrl, auditLog, jsonAuthHeaders } from "@/lib/security";
 import UploadFormWrapper from "@/components/UploadFormWrapper";
-import { updateProfileInstansiAction } from "@/app/actions/upload";
 
 interface ProfileProps {
   userName: string;
@@ -13,10 +11,11 @@ interface ProfileProps {
 }
 
 export default function DashboardProfile({ userName, userNbm, institution, emailInstansi, suratTugas, suratPermohonan }: ProfileProps) {
-  // Bind closure variables to the standalone Server Action
-  const handleUpload = updateProfileInstansiAction.bind(null, {
-    userNbm
-  });
+  const apiPayload = {
+    userNbm,
+    institution,
+    emailInstansi
+  };
 
   return (
     <section className="bg-white p-6 rounded-3xl shadow-xl border border-slate-200">
@@ -27,7 +26,7 @@ export default function DashboardProfile({ userName, userNbm, institution, email
         <h3 className="text-base font-black text-slate-800 uppercase tracking-tight italic">Profil Penanggung Jawab</h3>
       </div>
 
-      <UploadFormWrapper serverAction={handleUpload} className="space-y-4">
+      <UploadFormWrapper apiEndpoint="/api/update-pic" apiPayload={apiPayload} className="space-y-4">
         <div>
           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Nama Operator</label>
           <p className="text-sm font-bold text-slate-700 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">{userName}</p>

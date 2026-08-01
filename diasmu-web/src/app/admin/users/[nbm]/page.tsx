@@ -3,9 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { apiUrl, authHeaders } from "@/lib/security";
 import type { PicInfo, Aset } from "@/types/diasmu";
-import { revalidatePath } from "next/cache";
 import UploadFormWrapper from "@/components/UploadFormWrapper";
-import { adminUploadBerkasAction } from "@/app/actions/upload";
 
 export const runtime = "edge";
 
@@ -55,12 +53,11 @@ export default async function PicProfilePage(props: Props) {
     );
   }
 
-  // Bind closure variables to the standalone Server Action
-  const handleUpload = adminUploadBerkasAction.bind(null, {
+  const apiPayload = {
     encodedId,
     institution: data?.institution,
     email_instansi: data?.email_instansi
-  });
+  };
 
   return (
     <div className="ui-profile-page animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
@@ -132,7 +129,7 @@ export default async function PicProfilePage(props: Props) {
                 )}
               </div>
               
-              <UploadFormWrapper serverAction={handleUpload} className="mt-4 p-4 border border-slate-200 rounded-xl bg-white shadow-sm space-y-3">
+              <UploadFormWrapper apiEndpoint="/api/update-pic" apiPayload={apiPayload} className="mt-4 p-4 border border-slate-200 rounded-xl bg-white shadow-sm space-y-3">
                 <p className="text-xs font-bold text-slate-800 uppercase tracking-widest">Admin: Upload Berkas Susulan</p>
                 <div className="space-y-2">
                   <div>

@@ -4,11 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface UploadFormWrapperProps extends Omit<React.FormHTMLAttributes<HTMLFormElement>, 'action'> {
-  serverAction: (payload: any) => Promise<any>;
+  apiEndpoint: string;
+  apiPayload: Record<string, any>;
   children: React.ReactNode;
 }
 
-export default function UploadFormWrapper({ serverAction, children, className, ...props }: UploadFormWrapperProps) {
+export default function UploadFormWrapper({ apiEndpoint, apiPayload, children, className, ...props }: UploadFormWrapperProps) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -59,21 +60,29 @@ export default function UploadFormWrapper({ serverAction, children, className, .
         }
         const json = await res.json();
         formData.set("suratPermohonanName", json.filename);
-        formData.delete("suratPermohonan"); // Hapus file
-      }
-
-      // Konversi FormData ke plain object JSON agar Next.js tidak mengirimnya
-      // sebagai multipart/form-data ke Server Action (karena parser Edge runtime crash)
-      const payload: Record<string, any> = {};
+      // Kumpulkan data form
+      const payloadData: Record<string, any> = {};
       formData.forEach((value, key) => {
-        payload[key] = value;
+        payloadData[key] = value;
       });
+      
+      // Gabungkan dengan base payload
+      const finalDbPayload = { ...apiPayload, ...payloadData };
 
-      // Jalankan Server Action dengan JSON payload murni
-      const result: any = await serverAction(payload);
+      // Panggil API Route standar (Bukan Server Action untuk menghindari bug Edge runtime Next.js)
+      const res = await fetch(apiEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+           encodedId: apiPayload.encodedId || apiPayload.userNbm, // handle both admin and dashboard cases
+           dbPayload: finalDbPayload
+        })
+      });
+      
+      const result = await res.json().catch(() => ({}));
 
-      if (result && result.success === false) {
-        throw new Error(result.error || "Server Action gagal secara internal");
+      if (!res.ok || result.success === false) {
+        throw new Error(result.error || `API gagal dengan status ${res.status}`);
       }
 
       // Selesai
