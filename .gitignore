@@ -1,0 +1,7 @@
+.npm/
+.vercel/
+.wrangler/
+.local/
+node_modules/
+.next/
+.DS_Store

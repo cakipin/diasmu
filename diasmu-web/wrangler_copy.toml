@@ -1,0 +1,8 @@
+name = "diasmu"
+pages_build_output_dir = ".vercel/output/static"
+compatibility_date = "2024-05-14"
+
+# Variabel publik bisa diletakkan di sini
+[vars]
+AUTH_URL = "https://dias.muhammadiyah.or.id"
+NEXT_PUBLIC_API_URL = "https://diasmu.labmu.workers.dev"

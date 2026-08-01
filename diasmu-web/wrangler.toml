@@ -1,0 +1,8 @@
+name = "diasmu"
+pages_build_output_dir = ".vercel/output/static"
+compatibility_date = "2026-05-14"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+AUTH_URL = "https://dias.muhammadiyah.or.id"
+MUHAMMADIYAH_CLIENT_ID = "019e25d2-7863-726a-91a5-22b4e16e9f14"

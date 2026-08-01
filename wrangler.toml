@@ -1,0 +1,15 @@
+name = "diasmu"
+main = "src/index.ts"
+compatibility_date = "2024-05-14"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "diasmu_db"
+database_id = "2e22d99e-eb6b-4297-97d7-df684383f506"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "diasmu-assets"
+
+[vars]
+DIASMU_SECRET_TOKEN = "Muhammadiyah1912_AmanSentosa!?"
