@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
-import { apiUrl, auditLog, jsonAuthHeaders, authHeaders } from "@/lib/security";
+import { apiUrl, auditLog, jsonAuthHeaders } from "@/lib/security";
+import UploadFormWrapper from "@/components/UploadFormWrapper";
 
 interface ProfileProps {
   userName: string;
@@ -18,33 +19,12 @@ export default function DashboardProfile({ userName, userNbm, institution, email
     const newInstitution = formData.get("institution") as string;
     const newEmailInstansi = formData.get("emailInstansi") as string;
     
-    const fileTugas = formData.get("suratTugas") as File | null;
-    const filePermohonan = formData.get("suratPermohonan") as File | null;
-
-    let suratTugasName = undefined;
-    let suratPermohonanName = undefined;
+    // File upload is now handled securely by the client wrapper to avoid Next.js Edge multipart bugs.
+    // We just receive the final filenames here.
+    const suratTugasName = formData.get("suratTugasName") as string | null;
+    const suratPermohonanName = formData.get("suratPermohonanName") as string | null;
 
     try {
-      if (fileTugas && fileTugas.size > 0) {
-        const up1 = new FormData(); 
-        const blob = new Blob([await fileTugas.arrayBuffer()], { type: fileTugas.type });
-        up1.append("document", blob, fileTugas.name);
-
-        const r1 = await fetch(apiUrl("/api/upload"), { 
-          method: "POST", body: up1, headers: authHeaders()
-        });
-        if (r1.ok) suratTugasName = (await r1.json()).filename;
-      }
-      if (filePermohonan && filePermohonan.size > 0) {
-        const up2 = new FormData(); 
-        const blob = new Blob([await filePermohonan.arrayBuffer()], { type: filePermohonan.type });
-        up2.append("document", blob, filePermohonan.name);
-
-        const r2 = await fetch(apiUrl("/api/upload"), { 
-          method: "POST", body: up2, headers: authHeaders()
-        });
-        if (r2.ok) suratPermohonanName = (await r2.json()).filename;
-      }
 
       await fetch(apiUrl(`/api/pics/${userNbm}`), {
         method: "PUT",
@@ -72,7 +52,7 @@ export default function DashboardProfile({ userName, userNbm, institution, email
         <h3 className="text-base font-black text-slate-800 uppercase tracking-tight italic">Profil Penanggung Jawab</h3>
       </div>
 
-      <form action={updateProfileInstansi} className="space-y-4">
+      <UploadFormWrapper serverAction={updateProfileInstansi} className="space-y-4">
         <div>
           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Nama Operator</label>
           <p className="text-sm font-bold text-slate-700 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">{userName}</p>
@@ -119,7 +99,7 @@ export default function DashboardProfile({ userName, userNbm, institution, email
         <button type="submit" className="w-full bg-[#004282] text-white font-black uppercase tracking-widest text-[10px] py-3 rounded-xl shadow-md hover:bg-blue-900 transition-all active:scale-95 mt-4">
           Simpan Perubahan Profil
         </button>
-      </form>
+      </UploadFormWrapper>
     </section>
   );
 }

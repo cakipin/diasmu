@@ -4,6 +4,7 @@ import Link from "next/link";
 import { apiUrl, authHeaders } from "@/lib/security";
 import type { PicInfo, Aset } from "@/types/diasmu";
 import { revalidatePath } from "next/cache";
+import UploadFormWrapper from "@/components/UploadFormWrapper";
 
 export const runtime = "edge";
 
@@ -56,32 +57,11 @@ export default async function PicProfilePage(props: Props) {
   // SERVER ACTION: Admin upload berkas susulan
   async function adminUploadBerkas(formData: FormData) {
     "use server";
-    const fileTugas = formData.get("suratTugas") as File | null;
-    const filePermohonan = formData.get("suratPermohonan") as File | null;
-
-    let suratTugasName = undefined;
-    let suratPermohonanName = undefined;
-
-    try {
-      if (fileTugas && fileTugas.size > 0) {
-        const up1 = new FormData(); 
-        const blob = new Blob([await fileTugas.arrayBuffer()], { type: fileTugas.type });
-        up1.append("document", blob, fileTugas.name);
-        
-        const r1 = await fetch(apiUrl("/api/upload"), { method: "POST", body: up1, headers: authHeaders() });
-        if (r1.ok) suratTugasName = (await r1.json()).filename;
-      }
-      if (filePermohonan && filePermohonan.size > 0) {
-        const up2 = new FormData(); 
-        const blob = new Blob([await filePermohonan.arrayBuffer()], { type: filePermohonan.type });
-        up2.append("document", blob, filePermohonan.name);
-        
-        const r2 = await fetch(apiUrl("/api/upload"), { method: "POST", body: up2, headers: authHeaders() });
-        if (r2.ok) suratPermohonanName = (await r2.json()).filename;
-      }
-    } catch (e) {
-      console.error("Error uploading files to R2:", e);
-    }
+    
+    // File upload is now handled securely by the client wrapper to avoid Next.js Edge multipart bugs.
+    // We just receive the final filenames here.
+    const suratTugasName = formData.get("suratTugasName") as string | null;
+    const suratPermohonanName = formData.get("suratPermohonanName") as string | null;
 
     if (suratTugasName || suratPermohonanName) {
       const payload: any = { 
@@ -171,7 +151,7 @@ export default async function PicProfilePage(props: Props) {
                 )}
               </div>
               
-              <form action={adminUploadBerkas} className="mt-4 p-4 border border-slate-200 rounded-xl bg-white shadow-sm space-y-3">
+              <UploadFormWrapper serverAction={adminUploadBerkas} className="mt-4 p-4 border border-slate-200 rounded-xl bg-white shadow-sm space-y-3">
                 <p className="text-xs font-bold text-slate-800 uppercase tracking-widest">Admin: Upload Berkas Susulan</p>
                 <div className="space-y-2">
                   <div>
@@ -186,7 +166,7 @@ export default async function PicProfilePage(props: Props) {
                 <button type="submit" className="w-full bg-[#004282] text-white font-bold uppercase tracking-widest text-[10px] py-2 rounded-lg shadow-sm hover:bg-blue-900 transition-all active:scale-95">
                   Upload Berkas
                 </button>
-              </form>
+              </UploadFormWrapper>
             </div>
           </div>
         </div>
