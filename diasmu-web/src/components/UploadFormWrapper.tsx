@@ -25,24 +25,40 @@ export default function UploadFormWrapper({ serverAction, children, className, .
 
     try {
       if (fileTugas && fileTugas.size > 0) {
-        const up = new FormData();
-        up.append("document", fileTugas);
-        const res = await fetch("/api/upload-proxy", { method: "POST", body: up });
-        if (res.ok) {
-          const json = await res.json();
-          formData.set("suratTugasName", json.filename);
+        const buffer = await fileTugas.arrayBuffer();
+        const res = await fetch("/api/upload-proxy", { 
+          method: "POST", 
+          headers: {
+            "x-file-name": encodeURIComponent(fileTugas.name),
+            "x-file-type": fileTugas.type
+          },
+          body: buffer 
+        });
+        if (!res.ok) {
+           const errJson = await res.json().catch(() => ({}));
+           throw new Error(`Upload proxy returned ${res.status}: ${errJson.error || errJson.message || res.statusText}`);
         }
+        const json = await res.json();
+        formData.set("suratTugasName", json.filename);
         formData.delete("suratTugas"); // Sangat penting: hapus file agar tidak dikirim ke Server Action
       }
 
       if (filePermohonan && filePermohonan.size > 0) {
-        const up = new FormData();
-        up.append("document", filePermohonan);
-        const res = await fetch("/api/upload-proxy", { method: "POST", body: up });
-        if (res.ok) {
-          const json = await res.json();
-          formData.set("suratPermohonanName", json.filename);
+        const buffer = await filePermohonan.arrayBuffer();
+        const res = await fetch("/api/upload-proxy", { 
+          method: "POST", 
+          headers: {
+            "x-file-name": encodeURIComponent(filePermohonan.name),
+            "x-file-type": filePermohonan.type
+          },
+          body: buffer 
+        });
+        if (!res.ok) {
+           const errJson = await res.json().catch(() => ({}));
+           throw new Error(`Upload proxy returned ${res.status}: ${errJson.error || errJson.message || res.statusText}`);
         }
+        const json = await res.json();
+        formData.set("suratPermohonanName", json.filename);
         formData.delete("suratPermohonan"); // Hapus file
       }
 
@@ -53,9 +69,9 @@ export default function UploadFormWrapper({ serverAction, children, className, .
       form.reset();
       router.refresh();
       alert("Berhasil!");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Gagal saat upload file. Silakan coba lagi.");
+      alert("Gagal saat upload file: " + (err?.message || err));
     } finally {
       setLoading(false);
     }

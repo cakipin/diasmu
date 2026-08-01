@@ -5,19 +5,25 @@ export const runtime = "edge";
 
 export async function POST(req: NextRequest) {
   try {
-    // Forward the raw stream directly to Hono to bypass Next.js Edge formData parsing bugs completely!
-    const contentType = req.headers.get("content-type") || "";
+    const fileName = decodeURIComponent(req.headers.get("x-file-name") || "document.pdf");
+    const fileType = req.headers.get("x-file-type") || "application/pdf";
     
-    // Web APIs fetch on Edge runtime supports duplex: "half" for streaming bodies
+    // Read raw binary from client to bypass Next.js multipart formData parsing bugs completely!
+    const buffer = await req.arrayBuffer();
+    
+    if (!buffer || buffer.byteLength === 0) {
+      return NextResponse.json({ success: false, message: "No document provided" }, { status: 400 });
+    }
+
+    // Construct FormData to send to Hono
+    const up = new FormData();
+    const blob = new Blob([buffer], { type: fileType });
+    up.append("document", blob, fileName);
+
     const r = await fetch(apiUrl("/api/upload"), {
       method: "POST",
-      headers: {
-        "Authorization": authHeaders().Authorization,
-        "Content-Type": contentType,
-      },
-      body: req.body,
-      // @ts-ignore
-      duplex: "half"
+      headers: authHeaders(),
+      body: up,
     });
 
     const data = await r.json();
