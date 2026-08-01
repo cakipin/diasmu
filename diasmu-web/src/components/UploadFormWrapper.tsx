@@ -60,6 +60,8 @@ export default function UploadFormWrapper({ apiEndpoint, apiPayload, children, c
         }
         const json = await res.json();
         formData.set("suratPermohonanName", json.filename);
+      }
+      
       // Kumpulkan data form
       const payloadData: Record<string, any> = {};
       formData.forEach((value, key) => {
