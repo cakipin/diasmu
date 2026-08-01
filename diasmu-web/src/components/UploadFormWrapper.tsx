@@ -40,8 +40,8 @@ export default function UploadFormWrapper({ apiEndpoint, apiPayload, children, c
            throw new Error(`Upload proxy returned ${res.status}: ${errJson.error || errJson.message || res.statusText}`);
         }
         const json = await res.json();
-        formData.set("suratTugasName", json.filename);
-        formData.delete("suratTugas"); // Sangat penting: hapus file agar tidak dikirim ke Server Action
+        formData.set("surat_tugas", json.filename);
+        formData.delete("suratTugas"); // Sangat penting: hapus file agar tidak dikirim ke API
       }
 
       if (filePermohonan && filePermohonan.size > 0) {
@@ -59,7 +59,8 @@ export default function UploadFormWrapper({ apiEndpoint, apiPayload, children, c
            throw new Error(`Upload proxy returned ${res.status}: ${errJson.error || errJson.message || res.statusText}`);
         }
         const json = await res.json();
-        formData.set("suratPermohonanName", json.filename);
+        formData.set("surat_permohonan", json.filename);
+        formData.delete("suratPermohonan"); // Sangat penting: hapus file agar tidak dikirim ke API
       }
       
       // Kumpulkan data form
