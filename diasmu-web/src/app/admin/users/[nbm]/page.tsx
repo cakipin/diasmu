@@ -62,15 +62,25 @@ export default async function PicProfilePage(props: Props) {
     let suratTugasName = undefined;
     let suratPermohonanName = undefined;
 
-    if (fileTugas && fileTugas.size > 0) {
-      const up1 = new FormData(); up1.append("document", fileTugas);
-      const r1 = await fetch(apiUrl("/api/upload"), { method: "POST", body: up1, headers: authHeaders() });
-      if (r1.ok) suratTugasName = (await r1.json()).filename;
-    }
-    if (filePermohonan && filePermohonan.size > 0) {
-      const up2 = new FormData(); up2.append("document", filePermohonan);
-      const r2 = await fetch(apiUrl("/api/upload"), { method: "POST", body: up2, headers: authHeaders() });
-      if (r2.ok) suratPermohonanName = (await r2.json()).filename;
+    try {
+      if (fileTugas && fileTugas.size > 0) {
+        const up1 = new FormData(); 
+        const blob = new Blob([await fileTugas.arrayBuffer()], { type: fileTugas.type });
+        up1.append("document", blob, fileTugas.name);
+        
+        const r1 = await fetch(apiUrl("/api/upload"), { method: "POST", body: up1, headers: authHeaders() });
+        if (r1.ok) suratTugasName = (await r1.json()).filename;
+      }
+      if (filePermohonan && filePermohonan.size > 0) {
+        const up2 = new FormData(); 
+        const blob = new Blob([await filePermohonan.arrayBuffer()], { type: filePermohonan.type });
+        up2.append("document", blob, filePermohonan.name);
+        
+        const r2 = await fetch(apiUrl("/api/upload"), { method: "POST", body: up2, headers: authHeaders() });
+        if (r2.ok) suratPermohonanName = (await r2.json()).filename;
+      }
+    } catch (e) {
+      console.error("Error uploading files to R2:", e);
     }
 
     if (suratTugasName || suratPermohonanName) {
