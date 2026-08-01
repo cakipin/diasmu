@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-interface UploadFormWrapperProps extends React.FormHTMLAttributes<HTMLFormElement> {
-  serverAction: (formData: FormData) => Promise<void>;
+interface UploadFormWrapperProps extends Omit<React.FormHTMLAttributes<HTMLFormElement>, 'action'> {
+  serverAction: (payload: any) => Promise<any>;
   children: React.ReactNode;
 }
 
@@ -62,8 +62,15 @@ export default function UploadFormWrapper({ serverAction, children, className, .
         formData.delete("suratPermohonan"); // Hapus file
       }
 
-      // Jalankan Server Action dengan formData yang sudah bersih dari file binary
-      const result: any = await serverAction(formData);
+      // Konversi FormData ke plain object JSON agar Next.js tidak mengirimnya
+      // sebagai multipart/form-data ke Server Action (karena parser Edge runtime crash)
+      const payload: Record<string, any> = {};
+      formData.forEach((value, key) => {
+        payload[key] = value;
+      });
+
+      // Jalankan Server Action dengan JSON payload murni
+      const result: any = await serverAction(payload);
 
       if (result && result.success === false) {
         throw new Error(result.error || "Server Action gagal secara internal");

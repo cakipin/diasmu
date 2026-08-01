@@ -14,14 +14,14 @@ interface ProfileProps {
 export default function DashboardProfile({ userName, userNbm, institution, emailInstansi, suratTugas, suratPermohonan }: ProfileProps) {
   
   // SERVER ACTION: Update Profil Mandiri terisolasi di komponen ini
-  async function updateProfileInstansi(formData: FormData) {
+  async function updateProfileInstansi(formData: Record<string, any>) {
     "use server";
     try {
-      const newInstitution = formData.get("institution") as string;
-      const newEmailInstansi = formData.get("emailInstansi") as string;
+      const newInstitution = formData.institution as string;
+      const newEmailInstansi = formData.emailInstansi as string;
       
-      const suratTugasName = formData.get("suratTugasName") as string | null;
-      const suratPermohonanName = formData.get("suratPermohonanName") as string | null;
+      const suratTugasName = formData.suratTugasName as string | undefined;
+      const suratPermohonanName = formData.suratPermohonanName as string | undefined;
 
       const payload: any = {
         institution: newInstitution,

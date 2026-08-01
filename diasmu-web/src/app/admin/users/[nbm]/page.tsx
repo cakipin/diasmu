@@ -55,12 +55,12 @@ export default async function PicProfilePage(props: Props) {
   }
 
   // SERVER ACTION: Admin upload berkas susulan
-  async function adminUploadBerkas(formData: FormData) {
+  async function adminUploadBerkas(formData: Record<string, any>) {
     "use server";
     
     try {
-      const suratTugasName = formData.get("suratTugasName") as string | null;
-      const suratPermohonanName = formData.get("suratPermohonanName") as string | null;
+      const suratTugasName = formData.suratTugasName as string | undefined;
+      const suratPermohonanName = formData.suratPermohonanName as string | undefined;
 
       if (suratTugasName || suratPermohonanName) {
         const payload: any = { 
