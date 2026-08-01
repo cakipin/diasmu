@@ -3,7 +3,18 @@ const API_BASE_URL = "https://diasmu.labmu.workers.dev";
 type AuditMetadata = Record<string, string | number | boolean | null | undefined>;
 
 export function getInternalSecret() {
-  const token = process.env.DIASMU_SECRET_TOKEN;
+  let token = process.env.DIASMU_SECRET_TOKEN;
+
+  if (!token) {
+    try {
+      // Fallback for Cloudflare Edge runtime in Server Actions where process.env might be dropped
+      const { getRequestContext } = require("@cloudflare/next-on-pages");
+      const ctx = getRequestContext();
+      token = (ctx.env as any).DIASMU_SECRET_TOKEN;
+    } catch (e) {
+      // ignore
+    }
+  }
 
   if (!token) {
     throw new Error("DIASMU_SECRET_TOKEN belum dikonfigurasi di environment.");

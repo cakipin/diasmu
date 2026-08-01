@@ -58,26 +58,38 @@ export default async function PicProfilePage(props: Props) {
   async function adminUploadBerkas(formData: FormData) {
     "use server";
     
-    // File upload is now handled securely by the client wrapper to avoid Next.js Edge multipart bugs.
-    // We just receive the final filenames here.
-    const suratTugasName = formData.get("suratTugasName") as string | null;
-    const suratPermohonanName = formData.get("suratPermohonanName") as string | null;
+    try {
+      const suratTugasName = formData.get("suratTugasName") as string | null;
+      const suratPermohonanName = formData.get("suratPermohonanName") as string | null;
 
-    if (suratTugasName || suratPermohonanName) {
-      const payload: any = { 
-        institution: data?.institution || "-",
-        email_instansi: data?.email_instansi || "-"
-      };
-      if (suratTugasName) payload.surat_tugas = suratTugasName;
-      if (suratPermohonanName) payload.surat_permohonan = suratPermohonanName;
+      if (suratTugasName || suratPermohonanName) {
+        const payload: any = { 
+          institution: data?.institution || "-",
+          email_instansi: data?.email_instansi || "-"
+        };
+        if (suratTugasName) payload.surat_tugas = suratTugasName;
+        if (suratPermohonanName) payload.surat_permohonan = suratPermohonanName;
 
-      await fetch(apiUrl(`/api/pics/${encodedId}`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify(payload)
-      });
-      
-      revalidatePath(`/admin/users/${encodedId}`);
+        const res = await fetch(apiUrl(`/api/pics/${encodedId}`), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!res.ok) {
+           const errText = await res.text();
+           return { success: false, error: `Gagal update DB: ${res.status} ${errText}` };
+        }
+        
+        try {
+          revalidatePath(`/admin/users/${encodedId}`);
+        } catch (e: any) {
+           console.warn("revalidatePath failed (Edge issue):", e);
+        }
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || String(err) };
     }
   }
 

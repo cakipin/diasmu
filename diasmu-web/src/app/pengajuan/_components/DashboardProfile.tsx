@@ -16,30 +16,43 @@ export default function DashboardProfile({ userName, userNbm, institution, email
   // SERVER ACTION: Update Profil Mandiri terisolasi di komponen ini
   async function updateProfileInstansi(formData: FormData) {
     "use server";
-    const newInstitution = formData.get("institution") as string;
-    const newEmailInstansi = formData.get("emailInstansi") as string;
-    
-    // File upload is now handled securely by the client wrapper to avoid Next.js Edge multipart bugs.
-    // We just receive the final filenames here.
-    const suratTugasName = formData.get("suratTugasName") as string | null;
-    const suratPermohonanName = formData.get("suratPermohonanName") as string | null;
-
     try {
+      const newInstitution = formData.get("institution") as string;
+      const newEmailInstansi = formData.get("emailInstansi") as string;
+      
+      const suratTugasName = formData.get("suratTugasName") as string | null;
+      const suratPermohonanName = formData.get("suratPermohonanName") as string | null;
 
-      await fetch(apiUrl(`/api/pics/${userNbm}`), {
+      const payload: any = {
+        institution: newInstitution,
+        email_instansi: newEmailInstansi,
+      };
+      
+      if (suratTugasName) payload.surat_tugas = suratTugasName;
+      if (suratPermohonanName) payload.surat_permohonan = suratPermohonanName;
+
+      const res = await fetch(apiUrl(`/api/pics/${userNbm}`), {
         method: "PUT",
         headers: jsonAuthHeaders(),
-        body: JSON.stringify({ 
-          institution: newInstitution, 
-          email_instansi: newEmailInstansi,
-          surat_tugas: suratTugasName,
-          surat_permohonan: suratPermohonanName
-        })
+        body: JSON.stringify(payload)
       });
+      
+      if (!res.ok) {
+         const errText = await res.text();
+         return { success: false, error: `Gagal update profil: ${res.status} ${errText}` };
+      }
+      
       await auditLog("pic.profile.updated", { actor: userNbm, institution: newInstitution });
-      revalidatePath("/pengajuan");
-    } catch (error) {
-      console.error("Gagal update profil:", error);
+      
+      try {
+        revalidatePath("/pengajuan");
+      } catch (e) {
+        console.warn("revalidatePath failed:", e);
+      }
+      
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || String(err) };
     }
   }
 

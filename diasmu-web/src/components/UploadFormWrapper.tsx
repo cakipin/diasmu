@@ -62,8 +62,12 @@ export default function UploadFormWrapper({ serverAction, children, className, .
         formData.delete("suratPermohonan"); // Hapus file
       }
 
-      // Jalankan Server Action dengan formData yang sudah bersih dari file binary (hanya berisi teks nama file)
-      await serverAction(formData);
+      // Jalankan Server Action dengan formData yang sudah bersih dari file binary
+      const result: any = await serverAction(formData);
+
+      if (result && result.success === false) {
+        throw new Error(result.error || "Server Action gagal secara internal");
+      }
 
       // Selesai
       form.reset();
