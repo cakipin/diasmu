@@ -5,22 +5,19 @@ export const runtime = "edge";
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const document = formData.get("document");
+    // Forward the raw stream directly to Hono to bypass Next.js Edge formData parsing bugs completely!
+    const contentType = req.headers.get("content-type") || "";
     
-    if (!document) {
-      return NextResponse.json({ success: false, message: "No document provided" }, { status: 400 });
-    }
-
-    const up = new FormData();
-    // Since req.formData() returns native Edge runtime File objects, we bypass Next.js internal Server Action bugs!
-    // We send it straight to Hono backend
-    up.append("document", document);
-
+    // Web APIs fetch on Edge runtime supports duplex: "half" for streaming bodies
     const r = await fetch(apiUrl("/api/upload"), {
       method: "POST",
-      body: up,
-      headers: authHeaders(),
+      headers: {
+        "Authorization": authHeaders().Authorization,
+        "Content-Type": contentType,
+      },
+      body: req.body,
+      // @ts-ignore
+      duplex: "half"
     });
 
     const data = await r.json();
