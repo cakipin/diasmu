@@ -22,7 +22,7 @@ const app = new Hono<{ Bindings: Bindings }>()
 // MIDDLEWARE & GLOBAL SECURITY
 // ==========================================
 app.use('/api/*', cors({
-  origin: ['https://diasmu.pages.dev', 'http://localhost:3000'],
+  origin: ['https://diasmu.pages.dev', 'https://dias.muhammadiyah.or.id', 'http://localhost:3000'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 }))
 

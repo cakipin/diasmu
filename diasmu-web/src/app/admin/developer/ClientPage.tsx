@@ -9,10 +9,22 @@ type OAuthClient = {
   client_id: string;
   client_secret: string;
   redirect_uris: string;
-  allow_localhost: boolean;
+  allow_localhost: boolean | number;
+  environment?: "production" | "staging" | string;
   created_by: string;
   created_at: string;
 };
+
+// Helper untuk mendeteksi status environment jika belum diset eksplisit
+function getClientEnvironment(client: OAuthClient): "staging" | "production" {
+  if (client.environment === "staging") return "staging";
+  if (client.environment === "production") return "production";
+  const uris = (client.redirect_uris || "").toLowerCase();
+  if (uris.includes("staging") || uris.includes("dev") || uris.includes("preview")) {
+    return "staging";
+  }
+  return "production";
+}
 
 // Ikon Copy SVG
 function CopyIcon() {
@@ -33,7 +45,7 @@ function CheckIcon() {
 }
 
 // Komponen Tombol Copy
-function CopyButton({ text, label }: { text: string, label: string }) {
+function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -42,7 +54,6 @@ function CopyButton({ text, label }: { text: string, label: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback untuk browser yang tidak support Clipboard API
       const ta = document.createElement("textarea");
       ta.value = text;
       document.body.appendChild(ta);
@@ -56,6 +67,7 @@ function CopyButton({ text, label }: { text: string, label: string }) {
 
   return (
     <button
+      type="button"
       onClick={handleCopy}
       title={`Copy ${label}`}
       className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
@@ -69,17 +81,22 @@ function CopyButton({ text, label }: { text: string, label: string }) {
   );
 }
 
-export default function ClientPage({ initialClients, userEmail }: { initialClients: OAuthClient[], userEmail: string }) {
+export default function ClientPage({ initialClients, userEmail }: { initialClients: OAuthClient[]; userEmail: string }) {
   const [appName, setAppName] = useState("");
   const [redirectUris, setRedirectUris] = useState("");
+  const [environment, setEnvironment] = useState<"production" | "staging">("production");
   const [allowLocalhost, setAllowLocalhost] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [newCredentials, setNewCredentials] = useState<{ client_id: string, client_secret: string } | null>(null);
+  const [newCredentials, setNewCredentials] = useState<{ client_id: string; client_secret: string } | null>(null);
+
+  // Filter Tab di List Aplikasi
+  const [filterEnv, setFilterEnv] = useState<"all" | "production" | "staging">("all");
 
   // State untuk Edit
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editRedirect, setEditRedirect] = useState("");
+  const [editEnvironment, setEditEnvironment] = useState<"production" | "staging">("production");
   const [editAllowLocalhost, setEditAllowLocalhost] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -87,14 +104,15 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
     e.preventDefault();
     setIsCreating(true);
     try {
-      const result = await createClientAction(appName, redirectUris, allowLocalhost, userEmail);
+      const result = await createClientAction(appName, redirectUris, allowLocalhost, userEmail, environment);
       if (result.success) {
         setNewCredentials({
           client_id: result.data.client_id,
-          client_secret: result.data.client_secret
+          client_secret: result.data.client_secret,
         });
         setAppName("");
         setRedirectUris("");
+        setEnvironment("production");
         setAllowLocalhost(false);
       } else {
         alert(result.message || result.error);
@@ -115,11 +133,13 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
       console.error(e);
     }
   };
+
   const startEdit = (client: OAuthClient) => {
     setEditingId(client.id);
     setEditName(client.app_name);
     setEditRedirect(client.redirect_uris || "");
-    setEditAllowLocalhost(client.allow_localhost);
+    setEditEnvironment(getClientEnvironment(client));
+    setEditAllowLocalhost(Boolean(client.allow_localhost));
   };
 
   const cancelEdit = () => {
@@ -131,7 +151,7 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
   const handleUpdate = async (id: number) => {
     setIsSaving(true);
     try {
-      const result = await updateClientAction(id, editName, editRedirect, editAllowLocalhost);
+      const result = await updateClientAction(id, editName, editRedirect, editAllowLocalhost, editEnvironment);
       if (result.success) {
         setEditingId(null);
       } else {
@@ -144,12 +164,17 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
     }
   };
 
+  const filteredClients = initialClients.filter((client) => {
+    if (filterEnv === "all") return true;
+    return getClientEnvironment(client) === filterEnv;
+  });
+
   return (
     <div className="ui-developer-page mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black tracking-tighter text-[#003870] italic">PENGATURAN DEVELOPER</h1>
-          <p className="text-slate-500 font-medium mt-1">Kelola kredensial SSO (Client ID & Secret) untuk aplikasi pihak ketiga.</p>
+          <p className="text-slate-500 font-medium mt-1">Kelola kredensial SSO (Client ID &amp; Secret) untuk aplikasi Production &amp; Staging.</p>
         </div>
       </div>
 
@@ -175,7 +200,7 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
               <CopyButton text={newCredentials.client_secret} label="Secret" />
             </div>
           </div>
-          <button onClick={() => setNewCredentials(null)} className="mt-4 px-4 py-2 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition">Tutup Peringatan</button>
+          <button type="button" onClick={() => setNewCredentials(null)} className="mt-4 px-4 py-2 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition">Tutup Peringatan</button>
         </div>
       )}
 
@@ -190,6 +215,37 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
             </h2>
             
             <div className="space-y-5">
+              {/* Pilihan Opsi Prod & Staging */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Tipe Lingkungan (Environment)</label>
+                <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setEnvironment("production")}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      environment === "production"
+                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${environment === "production" ? "bg-white" : "bg-emerald-500"}`}></span>
+                    Production
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEnvironment("staging")}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      environment === "staging"
+                        ? "bg-amber-500 text-white shadow-md shadow-amber-600/20"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${environment === "staging" ? "bg-white" : "bg-amber-400"}`}></span>
+                    Staging
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Nama Aplikasi</label>
                 <input 
@@ -198,7 +254,7 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
                   value={appName}
                   onChange={e => setAppName(e.target.value)}
                   placeholder="Misal: Portal PWM" 
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-sm font-semibold text-slate-800" 
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-sm font-semibold text-slate-800" 
                 />
               </div>
               
@@ -207,8 +263,8 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
                 <textarea 
                   value={redirectUris}
                   onChange={e => setRedirectUris(e.target.value)}
-                  placeholder="https://app.muhammadiyah.or.id/callback" 
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-sm h-24 resize-none text-slate-800" 
+                  placeholder={environment === "production" ? "https://app.muhammadiyah.or.id/callback" : "https://staging.app.pages.dev/callback"} 
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-sm h-24 resize-none text-slate-800" 
                 />
                 <p className="text-[10px] text-slate-400 mt-1">Pisahkan dengan koma jika lebih dari satu.</p>
               </div>
@@ -241,116 +297,208 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
         {/* DAFTAR APLIKASI */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-[2rem] p-6 md:p-8 shadow-xl shadow-blue-900/5 border border-slate-100">
-            <h2 className="text-xl font-black italic tracking-tight text-slate-800 mb-6 flex items-center gap-2">
-              <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
-              APLIKASI TERDAFTAR
-            </h2>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <h2 className="text-xl font-black italic tracking-tight text-slate-800 flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                APLIKASI TERDAFTAR
+              </h2>
 
-            {initialClients.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 font-bold">Belum ada kredensial aplikasi yang dibuat.</div>
+              {/* Filter Tabs: Semua, Prod, Staging */}
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setFilterEnv("all")}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${filterEnv === "all" ? "bg-white text-slate-900 shadow-sm" : "hover:text-slate-900"}`}
+                >
+                  Semua ({initialClients.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterEnv("production")}
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${filterEnv === "production" ? "bg-emerald-600 text-white shadow-sm" : "hover:text-slate-900"}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${filterEnv === "production" ? "bg-white" : "bg-emerald-500"}`}></span>
+                  Prod
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterEnv("staging")}
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${filterEnv === "staging" ? "bg-amber-500 text-white shadow-sm" : "hover:text-slate-900"}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${filterEnv === "staging" ? "bg-white" : "bg-amber-400"}`}></span>
+                  Staging
+                </button>
+              </div>
+            </div>
+
+            {filteredClients.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 font-bold">Belum ada kredensial aplikasi yang dibuat untuk filter ini.</div>
             ) : (
               <div className="space-y-4">
-                {initialClients.map(client => (
-                  <div key={client.id} className="p-5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-900/5 transition-all bg-slate-50/50">
-                    
-                    {editingId === client.id ? (
-                      /* === MODE EDIT === */
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nama Aplikasi</label>
-                          <input
-                            type="text"
-                            value={editName}
-                            onChange={e => setEditName(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm font-semibold text-slate-800"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Redirect URIs</label>
-                          <input
-                            type="text"
-                            value={editRedirect}
-                            onChange={e => setEditRedirect(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm text-slate-800"
-                          />
-                        </div>
-                        
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => setEditAllowLocalhost(!editAllowLocalhost)}
-                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${editAllowLocalhost ? 'bg-blue-600' : 'bg-slate-300'}`}
-                          >
-                            <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${editAllowLocalhost ? 'translate-x-4' : 'translate-x-0'}`} />
-                          </button>
-                          <p className="text-xs font-bold text-slate-600">Izinkan Localhost</p>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleUpdate(client.id)}
-                            disabled={isSaving}
-                            className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors disabled:opacity-50"
-                          >
-                            {isSaving ? "Menyimpan..." : "Simpan"}
-                          </button>
-                          <button
-                            onClick={cancelEdit}
-                            className="px-4 py-2 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
-                          >
-                            Batal
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* === MODE TAMPIL === */
-                      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-slate-800 text-lg">{client.app_name}</h3>
-                          <div className="mt-3 space-y-2">
-                            {/* Client ID + Copy */}
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-xs font-mono text-slate-500 break-all">
-                                <span className="font-semibold text-slate-400 uppercase tracking-widest text-[10px]">Client ID: </span>
-                                {client.client_id}
-                              </p>
-                              <CopyButton text={client.client_id} label="ID" />
-                            </div>
-                            {/* Secret (Hidden) + Copy */}
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-xs font-mono text-slate-500">
-                                <span className="font-semibold text-slate-400 uppercase tracking-widest text-[10px]">Secret: </span>
-                                •••••••••••••••••••• (Hidden)
-                              </p>
-                              <CopyButton text={client.client_secret} label="Secret" />
+                {filteredClients.map((client) => {
+                  const clientEnv = getClientEnvironment(client);
+                  const isLocalhost = Boolean(client.allow_localhost);
+
+                  return (
+                    <div key={client.id} className="p-5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-900/5 transition-all bg-slate-50/50">
+                      
+                      {editingId === client.id ? (
+                        /* === MODE EDIT === */
+                        <div className="space-y-4">
+                          {/* Opsi Prod vs Staging saat Edit */}
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tipe Lingkungan (Environment)</label>
+                            <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 max-w-xs">
+                              <button
+                                type="button"
+                                onClick={() => setEditEnvironment("production")}
+                                className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                                  editEnvironment === "production"
+                                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
+                                    : "text-slate-600 hover:text-slate-900"
+                                }`}
+                              >
+                                <span className={`w-2 h-2 rounded-full ${editEnvironment === "production" ? "bg-white" : "bg-emerald-500"}`}></span>
+                                Production
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditEnvironment("staging")}
+                                className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                                  editEnvironment === "staging"
+                                    ? "bg-amber-500 text-white shadow-md shadow-amber-600/20"
+                                    : "text-slate-600 hover:text-slate-900"
+                                }`}
+                              >
+                                <span className={`w-2 h-2 rounded-full ${editEnvironment === "staging" ? "bg-white" : "bg-amber-400"}`}></span>
+                                Staging
+                              </button>
                             </div>
                           </div>
-                          {client.redirect_uris && (
-                            <p className="text-[10px] font-semibold text-slate-400 mt-2 max-w-sm truncate">Redirect: {client.redirect_uris}</p>
-                          )}
-                          {client.allow_localhost && (
-                            <p className="inline-block px-2 py-0.5 mt-1 bg-amber-100 text-amber-700 text-[9px] font-bold uppercase rounded">Localhost Allowed</p>
-                          )}
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nama Aplikasi</label>
+                            <input
+                              type="text"
+                              value={editName}
+                              onChange={e => setEditName(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm font-semibold text-slate-800"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Redirect URIs</label>
+                            <input
+                              type="text"
+                              value={editRedirect}
+                              onChange={e => setEditRedirect(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm text-slate-800"
+                            />
+                          </div>
+                          
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setEditAllowLocalhost(!editAllowLocalhost)}
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${editAllowLocalhost ? 'bg-blue-600' : 'bg-slate-300'}`}
+                            >
+                              <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${editAllowLocalhost ? 'translate-x-4' : 'translate-x-0'}`} />
+                            </button>
+                            <p className="text-xs font-bold text-slate-600">Izinkan Localhost</p>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdate(client.id)}
+                              disabled={isSaving}
+                              className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors disabled:opacity-50"
+                            >
+                              {isSaving ? "Menyimpan..." : "Simpan"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEdit}
+                              className="px-4 py-2 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                            >
+                              Batal
+                            </button>
+                          </div>
                         </div>
-                        
-                        <div className="flex gap-2 shrink-0">
-                          <button 
-                            onClick={() => startEdit(client)}
-                            className="px-4 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-xl transition-colors"
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(client.id)}
-                            className="px-4 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-600 hover:text-white rounded-xl transition-colors"
-                          >
-                            Cabut Akses
-                          </button>
+                      ) : (
+                        /* === MODE TAMPIL === */
+                        <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-bold text-slate-800 text-lg">{client.app_name}</h3>
+                              
+                              {/* Badge Environment: Prod vs Staging */}
+                              {clientEnv === "production" ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                  PROD
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                  STAGING
+                                </span>
+                              )}
+
+                              {isLocalhost ? (
+                                <span className="inline-flex items-center px-2 py-0.5 bg-blue-100 text-blue-700 text-[9px] font-bold uppercase rounded border border-blue-200">
+                                  Localhost Allowed
+                                </span>
+                              ) : null}
+                            </div>
+
+                            <div className="mt-3 space-y-2">
+                              {/* Client ID + Copy */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-xs font-mono text-slate-500 break-all">
+                                  <span className="font-semibold text-slate-400 uppercase tracking-widest text-[10px]">Client ID: </span>
+                                  {client.client_id}
+                                </p>
+                                <CopyButton text={client.client_id} label="ID" />
+                              </div>
+                              {/* Secret (Hidden) + Copy */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-xs font-mono text-slate-500">
+                                  <span className="font-semibold text-slate-400 uppercase tracking-widest text-[10px]">Secret: </span>
+                                  •••••••••••••••••••• (Hidden)
+                                </p>
+                                <CopyButton text={client.client_secret} label="Secret" />
+                              </div>
+                            </div>
+
+                            {client.redirect_uris ? (
+                              <p className="text-[11px] font-mono text-slate-600 mt-2.5 max-w-lg break-all bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                                <span className="font-semibold text-slate-400 uppercase tracking-widest text-[9px] mr-1">Redirect:</span>
+                                {client.redirect_uris}
+                              </p>
+                            ) : null}
+                          </div>
+                          
+                          <div className="flex gap-2 shrink-0">
+                            <button 
+                              type="button"
+                              onClick={() => startEdit(client)}
+                              className="px-4 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-xl transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => handleDelete(client.id)}
+                              className="px-4 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-600 hover:text-white rounded-xl transition-colors"
+                            >
+                              Cabut Akses
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

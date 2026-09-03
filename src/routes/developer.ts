@@ -1,7 +1,9 @@
-import { Hono } from 'hono'
+import { Hono } from 'hono';
+import { desc, eq } from 'drizzle-orm';
+import { getDb, oauthClients } from '../db';
 
-type Bindings = { DB: D1Database }
-const developer = new Hono<{ Bindings: Bindings }>()
+type Bindings = { DB: D1Database };
+const developer = new Hono<{ Bindings: Bindings }>();
 
 // Fungsi untuk men-generate random string
 function generateRandomString(length: number) {
@@ -15,67 +17,101 @@ function generateRandomString(length: number) {
 
 // 1. GET ALL CLIENTS
 developer.get('/clients', async (c) => {
+  const db = getDb(c.env.DB);
   try {
-    const { results } = await c.env.DB.prepare('SELECT * FROM oauth_clients ORDER BY id DESC').all();
+    const results = await db
+      .select({
+        id: oauthClients.id,
+        app_name: oauthClients.appName,
+        client_id: oauthClients.clientId,
+        client_secret: oauthClients.clientSecret,
+        redirect_uris: oauthClients.redirectUris,
+        allow_localhost: oauthClients.allowLocalhost,
+        created_by: oauthClients.createdBy,
+        created_at: oauthClients.createdAt,
+      })
+      .from(oauthClients)
+      .orderBy(desc(oauthClients.id));
+
     return c.json(results);
-  } catch (e: any) { return c.json({ error: e.message }, 500); }
-})
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
 
 // 2. CREATE NEW CLIENT
 developer.post('/clients', async (c) => {
+  const db = getDb(c.env.DB);
   try {
     const { app_name, redirect_uris, allow_localhost, created_by } = await c.req.json();
-    
+
     if (!app_name) {
-      return c.json({ success: false, message: "Nama Aplikasi wajib diisi" }, 400);
+      return c.json({ success: false, message: 'Nama Aplikasi wajib diisi' }, 400);
     }
 
     // Generate Client ID dan Secret
     const clientId = 'client_' + generateRandomString(24);
     const clientSecret = generateRandomString(64);
 
-    await c.env.DB.prepare(
-      `INSERT INTO oauth_clients (app_name, client_id, client_secret, redirect_uris, allow_localhost, created_by) 
-       VALUES (?, ?, ?, ?, ?, ?)`
-    ).bind(app_name, clientId, clientSecret, redirect_uris || '', allow_localhost ? 1 : 0, created_by || '').run();
-    
-    return c.json({ 
-      success: true, 
-      message: "Kredensial Aplikasi berhasil dibuat",
+    await db.insert(oauthClients).values({
+      appName: app_name,
+      clientId,
+      clientSecret,
+      redirectUris: redirect_uris || '',
+      allowLocalhost: allow_localhost ? 1 : 0,
+      createdBy: created_by || '',
+    });
+
+    return c.json({
+      success: true,
+      message: 'Kredensial Aplikasi berhasil dibuat',
       data: {
         app_name,
         client_id: clientId,
-        client_secret: clientSecret
-      }
+        client_secret: clientSecret,
+      },
     });
-  } catch (e: any) { return c.json({ success: false, error: e.message }, 500); }
-})
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500);
+  }
+});
 
 // 3. UPDATE CLIENT
 developer.put('/clients/:id', async (c) => {
+  const id = Number(c.req.param('id'));
+  const db = getDb(c.env.DB);
   try {
-    const id = c.req.param('id');
     const { app_name, redirect_uris, allow_localhost } = await c.req.json();
-    
+
     if (!app_name) {
-      return c.json({ success: false, message: "Nama Aplikasi wajib diisi" }, 400);
+      return c.json({ success: false, message: 'Nama Aplikasi wajib diisi' }, 400);
     }
 
-    await c.env.DB.prepare(
-      `UPDATE oauth_clients SET app_name = ?, redirect_uris = ?, allow_localhost = ? WHERE id = ?`
-    ).bind(app_name, redirect_uris || '', allow_localhost ? 1 : 0, id).run();
-    
-    return c.json({ success: true, message: "Kredensial berhasil diperbarui" });
-  } catch (e: any) { return c.json({ success: false, error: e.message }, 500); }
-})
+    await db
+      .update(oauthClients)
+      .set({
+        appName: app_name,
+        redirectUris: redirect_uris || '',
+        allowLocalhost: allow_localhost ? 1 : 0,
+      })
+      .where(eq(oauthClients.id, id));
+
+    return c.json({ success: true, message: 'Kredensial berhasil diperbarui' });
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500);
+  }
+});
 
 // 4. DELETE CLIENT
 developer.delete('/clients/:id', async (c) => {
+  const id = Number(c.req.param('id'));
+  const db = getDb(c.env.DB);
   try {
-    const id = c.req.param('id');
-    await c.env.DB.prepare('DELETE FROM oauth_clients WHERE id = ?').bind(id).run();
-    return c.json({ success: true, message: "Kredensial berhasil dihapus" });
-  } catch (e: any) { return c.json({ success: false, error: e.message }, 500); }
-})
+    await db.delete(oauthClients).where(eq(oauthClients.id, id));
+    return c.json({ success: true, message: 'Kredensial berhasil dihapus' });
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500);
+  }
+});
 
 export default developer;
