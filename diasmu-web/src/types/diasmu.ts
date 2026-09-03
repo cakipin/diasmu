@@ -33,6 +33,10 @@ export type SsoUser = {
   nbm?: string | null;
   name?: string | null;
   email?: string | null;
+  prm?: string | null;
+  pcm?: string | null;
+  pdm?: string | null;
+  pwm?: string | null;
 };
 
 export type EligibleStaffUser = SsoUser & {

@@ -18,12 +18,34 @@ sso.get('/sso-users', async (c) => {
         nbm: ssoUsers.nbm,
         name: ssoUsers.name,
         email: ssoUsers.email,
+        sso_raw_data: ssoUsers.ssoRawData,
         last_login: ssoUsers.lastLogin,
       })
       .from(ssoUsers)
       .orderBy(desc(ssoUsers.id));
 
-    return c.json(results);
+    const enrichedResults = results.map((u) => {
+      let raw: Record<string, any> = {};
+      if (u.sso_raw_data) {
+        try {
+          raw = typeof u.sso_raw_data === 'string' ? JSON.parse(u.sso_raw_data) : u.sso_raw_data;
+        } catch {}
+      }
+      return {
+        id: u.id,
+        sso_user_id: u.sso_user_id,
+        nbm: u.nbm,
+        name: u.name,
+        email: u.email,
+        prm: raw.prm || raw.ranting || '',
+        pcm: raw.pcm || raw.cabang || '',
+        pdm: raw.pdm || raw.daerah || '',
+        pwm: raw.pwm || raw.wilayah || '',
+        last_login: u.last_login,
+      };
+    });
+
+    return c.json(enrichedResults);
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
   }
@@ -43,7 +65,9 @@ sso.post('/sso-users', async (c) => {
       return c.json({ success: false, message: 'Email wajib diisi' }, 400);
     }
 
-    const rawDataStr = JSON.stringify(payload);
+    const rawDataStr = typeof payload.sso_raw_data === 'string'
+      ? payload.sso_raw_data
+      : JSON.stringify(payload);
 
     // Cek apakah user sudah ada berdasarkan email
     const existing = await db
@@ -99,6 +123,10 @@ sso.post('/sync-mock', async (c) => {
         email: `user${i + 1}@muhammadiyah.or.id`,
         role: i === 0 ? 'admin' : 'staff',
         department: 'Majelis Pustaka',
+        prm: 'PRM Kauman',
+        pcm: 'PCM Gondomanan',
+        pdm: 'PDM Kota Yogyakarta',
+        pwm: 'PWM D.I. Yogyakarta',
       }),
     }));
 

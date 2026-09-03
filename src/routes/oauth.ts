@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { and, eq } from 'drizzle-orm';
-import { getDb, oauthClients, oauthCodes, oauthTokens } from '../db';
+import { getDb, oauthClients, oauthCodes, oauthTokens, ssoUsers } from '../db';
 
 type Bindings = { DB: D1Database; DIASMU_SECRET_TOKEN: string };
 const oauth = new Hono<{ Bindings: Bindings }>();
@@ -221,8 +221,8 @@ oauth.post('/token', async (c) => {
 
 // ==========================================
 // 3. GET /oauth/userinfo
-//    PUBLIK — Dipanggil oleh backend aplikasi client.
-//    Mengembalikan profil pengguna berdasarkan access token.
+//    PUBLIK — Dipanggil oleh backend / mobile aplikasi client.
+//    Mengembalikan profil pengguna + data struktural PRM, PCM, PDM, PWM.
 //    Autentikasi via header Authorization: Bearer <access_token>.
 // ==========================================
 oauth.get('/userinfo', async (c) => {
@@ -255,12 +255,40 @@ oauth.get('/userinfo', async (c) => {
       return c.json({ error: 'invalid_token', error_description: 'Token sudah expired' }, 401);
     }
 
+    // Ekstraksi data struktural PRM, PCM, PDM, PWM dari sso_users jika ada
+    let prm = '';
+    let pcm = '';
+    let pdm = '';
+    let pwm = '';
+
+    if (tokenRecord.userEmail) {
+      const ssoUserRes = await db
+        .select({ ssoRawData: ssoUsers.ssoRawData })
+        .from(ssoUsers)
+        .where(eq(ssoUsers.email, tokenRecord.userEmail))
+        .limit(1);
+
+      if (ssoUserRes.length > 0 && ssoUserRes[0].ssoRawData) {
+        try {
+          const raw = JSON.parse(ssoUserRes[0].ssoRawData);
+          prm = raw.prm || raw.ranting || '';
+          pcm = raw.pcm || raw.cabang || '';
+          pdm = raw.pdm || raw.daerah || '';
+          pwm = raw.pwm || raw.wilayah || '';
+        } catch {}
+      }
+    }
+
     return c.json({
       sub: tokenRecord.userEmail,
       name: tokenRecord.userName,
       email: tokenRecord.userEmail,
       nbm: tokenRecord.userNbm,
       picture: tokenRecord.userImage,
+      prm,
+      pcm,
+      pdm,
+      pwm,
     });
   } catch (e: any) {
     return c.json({ error: 'server_error', error_description: e.message }, 500);
