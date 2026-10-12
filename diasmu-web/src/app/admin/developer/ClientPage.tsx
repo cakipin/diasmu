@@ -28,6 +28,30 @@ function getClientEnvironment(client: OAuthClient): "all" | "staging" | "product
   return "production";
 }
 
+// Helper untuk mengekstrak URI Prod dan Staging secara cerdas
+function parseRedirectUris(urisString: string) {
+  const list = (urisString || "")
+    .split(",")
+    .map(u => u.trim())
+    .filter(Boolean);
+
+  let prod = "";
+  let staging = "";
+
+  for (const uri of list) {
+    const lower = uri.toLowerCase();
+    if (lower.includes("staging") || lower.includes("dev") || lower.includes(".pages.dev") || lower.includes("preview")) {
+      if (!staging) staging = uri;
+      else staging += `, ${uri}`;
+    } else {
+      if (!prod) prod = uri;
+      else prod += `, ${uri}`;
+    }
+  }
+
+  return { prod, staging, rawList: list };
+}
+
 // Ikon Copy SVG
 function CopyIcon() {
   return (
@@ -85,20 +109,17 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 export default function ClientPage({ initialClients, userEmail }: { initialClients: OAuthClient[]; userEmail: string }) {
   const [appName, setAppName] = useState("");
-  const [redirectUris, setRedirectUris] = useState("");
-  const [environment, setEnvironment] = useState<"all" | "production" | "staging">("all");
+  const [prodRedirect, setProdRedirect] = useState("");
+  const [stagingRedirect, setStagingRedirect] = useState("");
   const [allowLocalhost, setAllowLocalhost] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newCredentials, setNewCredentials] = useState<{ client_id: string; client_secret: string } | null>(null);
 
-  // Filter Tab di List Aplikasi
-  const [filterEnv, setFilterEnv] = useState<"all" | "production" | "staging">("all");
-
   // State untuk Edit
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
-  const [editRedirect, setEditRedirect] = useState("");
-  const [editEnvironment, setEditEnvironment] = useState<"all" | "production" | "staging">("all");
+  const [editProdRedirect, setEditProdRedirect] = useState("");
+  const [editStagingRedirect, setEditStagingRedirect] = useState("");
   const [editAllowLocalhost, setEditAllowLocalhost] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -110,16 +131,27 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
     e.preventDefault();
     setIsCreating(true);
     setFeedback(null);
+
+    // Kumpulkan callback URIs dari input Prod dan Staging
+    const parts = [prodRedirect.trim(), stagingRedirect.trim()].filter(Boolean);
+    const combinedUris = parts.join(", ");
+
+    if (!combinedUris) {
+      setIsCreating(false);
+      setFeedback({ type: "error", message: "Minimal salah satu Callback Redirect URI (Prod atau Staging) wajib diisi." });
+      return;
+    }
+
     try {
-      const result = await createClientAction(appName, redirectUris, allowLocalhost, userEmail, environment);
+      const result = await createClientAction(appName, combinedUris, allowLocalhost, userEmail, "all");
       if (result.success) {
         setNewCredentials({
           client_id: result.data.client_id,
           client_secret: result.data.client_secret,
         });
         setAppName("");
-        setRedirectUris("");
-        setEnvironment("production");
+        setProdRedirect("");
+        setStagingRedirect("");
         setAllowLocalhost(false);
         setFeedback({ type: "success", message: "Kredensial aplikasi berhasil dibuat!" });
       } else {
@@ -147,10 +179,11 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
   };
 
   const startEdit = (client: OAuthClient) => {
+    const parsed = parseRedirectUris(client.redirect_uris || "");
     setEditingId(client.id);
     setEditName(client.app_name);
-    setEditRedirect(client.redirect_uris || "");
-    setEditEnvironment(getClientEnvironment(client));
+    setEditProdRedirect(parsed.prod);
+    setEditStagingRedirect(parsed.staging);
     setEditAllowLocalhost(Boolean(client.allow_localhost));
     setFeedback(null);
   };
@@ -158,14 +191,25 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
   const cancelEdit = () => {
     setEditingId(null);
     setEditName("");
-    setEditRedirect("");
+    setEditProdRedirect("");
+    setEditStagingRedirect("");
   };
 
   const handleUpdate = async (id: number) => {
     setIsSaving(true);
     setFeedback(null);
+
+    const parts = [editProdRedirect.trim(), editStagingRedirect.trim()].filter(Boolean);
+    const combinedUris = parts.join(", ");
+
+    if (!combinedUris) {
+      setIsSaving(false);
+      setFeedback({ type: "error", message: "Minimal salah satu Callback Redirect URI (Prod atau Staging) wajib diisi." });
+      return;
+    }
+
     try {
-      const result = await updateClientAction(id, editName, editRedirect, editAllowLocalhost, editEnvironment);
+      const result = await updateClientAction(id, editName, combinedUris, editAllowLocalhost, "all");
       if (result.success) {
         setEditingId(null);
         setFeedback({ type: "success", message: "Kredensial berhasil diperbarui." });
@@ -179,14 +223,6 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
       setIsSaving(false);
     }
   };
-
-
-  const filteredClients = initialClients.filter((client) => {
-    if (filterEnv === "all") return true;
-    const env = getClientEnvironment(client);
-    if (env === "all") return true; // Aplikasi terpadu (Prod & Staging) tampil di kedua filter
-    return env === filterEnv;
-  });
 
   return (
     <div className="ui-developer-page mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -258,56 +294,6 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
             </h2>
             
             <div className="space-y-5">
-              {/* Pilihan Opsi Prod & Staging (Model A: Unified Key) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Tipe Lingkungan (Environment)</label>
-                <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => setEnvironment("all")}
-                    className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
-                      environment === "all"
-                        ? "bg-[#003870] text-white shadow-md shadow-blue-950/20"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                    Prod &amp; Staging
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEnvironment("production")}
-                    className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
-                      environment === "production"
-                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
-                    Prod Only
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEnvironment("staging")}
-                    className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
-                      environment === "staging"
-                        ? "bg-amber-500 text-white shadow-md shadow-amber-600/20"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-300"></span>
-                    Staging Only
-                  </button>
-                </div>
-                <p className="text-[10px] text-slate-400 mt-1.5">
-                  {environment === "all" 
-                    ? "✨ 1 Kredensial (Key & Secret) berlaku bersama untuk Production & Staging."
-                    : environment === "production"
-                    ? "Kredensial khusus lingkungan Production."
-                    : "Kredensial khusus lingkungan Staging / Development."}
-                </p>
-              </div>
-
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Nama Aplikasi</label>
                 <input 
@@ -320,15 +306,35 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
                 />
               </div>
               
+              {/* INPUT CALLBACK PRODUCTION */}
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Redirect URIs</label>
-                <textarea 
-                  value={redirectUris}
-                  onChange={e => setRedirectUris(e.target.value)}
-                  placeholder={environment === "production" ? "https://app.muhammadiyah.or.id/callback" : "https://staging.app.pages.dev/callback"} 
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-sm h-24 resize-none text-slate-800" 
+                <label className="block text-xs font-bold text-emerald-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  Callback URL Production
+                </label>
+                <input 
+                  type="url"
+                  value={prodRedirect}
+                  onChange={e => setProdRedirect(e.target.value)}
+                  placeholder="https://app.muhammadiyah.or.id/callback" 
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-emerald-200 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all text-xs font-mono text-slate-800" 
                 />
-                <p className="text-[10px] text-slate-400 mt-1">Pisahkan dengan koma jika lebih dari satu.</p>
+              </div>
+
+              {/* INPUT CALLBACK STAGING */}
+              <div>
+                <label className="block text-xs font-bold text-amber-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                  Callback URL Staging
+                </label>
+                <input 
+                  type="url"
+                  value={stagingRedirect}
+                  onChange={e => setStagingRedirect(e.target.value)}
+                  placeholder="https://staging.app.pages.dev/callback" 
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-amber-200 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 transition-all text-xs font-mono text-slate-800" 
+                />
+                <p className="text-[10px] text-slate-400 mt-1">1 Kredensial (Key &amp; Secret) akan otomatis mengenali kedua callback ini.</p>
               </div>
 
               <div className="flex items-center gap-3 bg-blue-50 p-4 rounded-xl border border-blue-100">
@@ -362,42 +368,15 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <h2 className="text-xl font-black italic tracking-tight text-slate-800 flex items-center gap-2">
                 <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
-                APLIKASI TERDAFTAR
+                APLIKASI TERDAFTAR ({initialClients.length})
               </h2>
-
-              {/* Filter Tabs: Semua, Prod, Staging */}
-              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold text-slate-600">
-                <button
-                  type="button"
-                  onClick={() => setFilterEnv("all")}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${filterEnv === "all" ? "bg-white text-slate-900 shadow-sm" : "hover:text-slate-900"}`}
-                >
-                  Semua ({initialClients.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterEnv("production")}
-                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${filterEnv === "production" ? "bg-emerald-600 text-white shadow-sm" : "hover:text-slate-900"}`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${filterEnv === "production" ? "bg-white" : "bg-emerald-500"}`}></span>
-                  Prod
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterEnv("staging")}
-                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${filterEnv === "staging" ? "bg-amber-500 text-white shadow-sm" : "hover:text-slate-900"}`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${filterEnv === "staging" ? "bg-white" : "bg-amber-400"}`}></span>
-                  Staging
-                </button>
-              </div>
             </div>
 
-            {filteredClients.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 font-bold">Belum ada kredensial aplikasi yang dibuat untuk filter ini.</div>
+            {initialClients.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 font-bold">Belum ada kredensial aplikasi yang dibuat.</div>
             ) : (
               <div className="space-y-4">
-                {filteredClients.map((client) => {
+                {initialClients.map((client) => {
                   const clientEnv = getClientEnvironment(client);
                   const isLocalhost = Boolean(client.allow_localhost);
 
@@ -407,49 +386,6 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
                       {editingId === client.id ? (
                         /* === MODE EDIT === */
                         <div className="space-y-4">
-                          {/* Opsi Prod vs Staging saat Edit */}
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tipe Lingkungan (Environment)</label>
-                            <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-                              <button
-                                type="button"
-                                onClick={() => setEditEnvironment("all")}
-                                className={`py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
-                                  editEnvironment === "all"
-                                    ? "bg-[#003870] text-white shadow-md shadow-blue-950/20"
-                                    : "text-slate-600 hover:text-slate-900"
-                                }`}
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                                Prod &amp; Staging
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditEnvironment("production")}
-                                className={`py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
-                                  editEnvironment === "production"
-                                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
-                                    : "text-slate-600 hover:text-slate-900"
-                                }`}
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
-                                Prod Only
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditEnvironment("staging")}
-                                className={`py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
-                                  editEnvironment === "staging"
-                                    ? "bg-amber-500 text-white shadow-md shadow-amber-600/20"
-                                    : "text-slate-600 hover:text-slate-900"
-                                }`}
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-300"></span>
-                                Staging Only
-                              </button>
-                            </div>
-                          </div>
-
                           <div>
                             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nama Aplikasi</label>
                             <input
@@ -459,13 +395,32 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
                               className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm font-semibold text-slate-800"
                             />
                           </div>
+
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Redirect URIs</label>
+                            <label className="block text-[10px] font-bold text-emerald-700 uppercase tracking-widest mb-1 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                              Callback URL Production
+                            </label>
                             <input
-                              type="text"
-                              value={editRedirect}
-                              onChange={e => setEditRedirect(e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm text-slate-800"
+                              type="url"
+                              value={editProdRedirect}
+                              onChange={e => setEditProdRedirect(e.target.value)}
+                              placeholder="https://app.muhammadiyah.or.id/callback"
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-emerald-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-xs font-mono text-slate-800"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-1 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                              Callback URL Staging
+                            </label>
+                            <input
+                              type="url"
+                              value={editStagingRedirect}
+                              onChange={e => setEditStagingRedirect(e.target.value)}
+                              placeholder="https://staging.app.pages.dev/callback"
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-amber-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 text-xs font-mono text-slate-800"
                             />
                           </div>
                           
@@ -505,24 +460,6 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-bold text-slate-800 text-lg">{client.app_name}</h3>
                               
-                              {/* Badge Environment: Prod & Staging (Model A) vs Prod vs Staging */}
-                              {clientEnv === "all" ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-900 border border-blue-200">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
-                                  PROD &amp; STAGING
-                                </span>
-                              ) : clientEnv === "production" ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                  PROD
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                                  STAGING
-                                </span>
-                              )}
-
                               {isLocalhost ? (
                                 <span className="inline-flex items-center px-2 py-0.5 bg-blue-100 text-blue-700 text-[9px] font-bold uppercase rounded border border-blue-200">
                                   Localhost Allowed
@@ -549,12 +486,34 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
                               </div>
                             </div>
 
-                            {client.redirect_uris ? (
-                              <p className="text-[11px] font-mono text-slate-600 mt-2.5 max-w-lg break-all bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                                <span className="font-semibold text-slate-400 uppercase tracking-widest text-[9px] mr-1">Redirect:</span>
-                                {client.redirect_uris}
-                              </p>
-                            ) : null}
+                            {/* TAMPILAN CALLBACK URL PROD & STAGING YANG JELAS */}
+                            {(() => {
+                              const parsed = parseRedirectUris(client.redirect_uris || "");
+                              return (
+                                <div className="mt-3 space-y-1.5 max-w-xl">
+                                  {parsed.prod ? (
+                                    <div className="flex items-center gap-2 bg-emerald-50/60 border border-emerald-100 px-3 py-1.5 rounded-xl text-xs font-mono text-emerald-900 break-all">
+                                      <span className="px-1.5 py-0.5 bg-emerald-200/80 text-emerald-950 font-sans font-black text-[9px] uppercase tracking-wider rounded">PROD</span>
+                                      <span className="truncate">{parsed.prod}</span>
+                                    </div>
+                                  ) : null}
+
+                                  {parsed.staging ? (
+                                    <div className="flex items-center gap-2 bg-amber-50/60 border border-amber-100 px-3 py-1.5 rounded-xl text-xs font-mono text-amber-900 break-all">
+                                      <span className="px-1.5 py-0.5 bg-amber-200/80 text-amber-950 font-sans font-black text-[9px] uppercase tracking-wider rounded">STAGING</span>
+                                      <span className="truncate">{parsed.staging}</span>
+                                    </div>
+                                  ) : null}
+
+                                  {!parsed.prod && !parsed.staging && client.redirect_uris ? (
+                                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-mono text-slate-700 break-all">
+                                      <span className="px-1.5 py-0.5 bg-slate-200 text-slate-800 font-sans font-black text-[9px] uppercase tracking-wider rounded">CALLBACK</span>
+                                      <span className="truncate">{client.redirect_uris}</span>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            })()}
                           </div>
                           
                           <div className="flex gap-2 shrink-0">
