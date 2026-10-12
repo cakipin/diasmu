@@ -127,6 +127,9 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
+  // Filter Tab di List Aplikasi (Semua, Prod, Staging)
+  const [filterEnv, setFilterEnv] = useState<"all" | "production" | "staging">("all");
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreating(true);
@@ -223,6 +226,28 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
       setIsSaving(false);
     }
   };
+
+  // Logika filter dan penghitungan jumlah per kategori
+  const prodCount = initialClients.filter((c) => {
+    const env = getClientEnvironment(c);
+    const parsed = parseRedirectUris(c.redirect_uris || "");
+    return env === "production" || env === "all" || Boolean(parsed.prod);
+  }).length;
+
+  const stagingCount = initialClients.filter((c) => {
+    const env = getClientEnvironment(c);
+    const parsed = parseRedirectUris(c.redirect_uris || "");
+    return env === "staging" || env === "all" || Boolean(parsed.staging);
+  }).length;
+
+  const filteredClients = initialClients.filter((c) => {
+    if (filterEnv === "all") return true;
+    const env = getClientEnvironment(c);
+    const parsed = parseRedirectUris(c.redirect_uris || "");
+    if (filterEnv === "production") return env === "production" || env === "all" || Boolean(parsed.prod);
+    if (filterEnv === "staging") return env === "staging" || env === "all" || Boolean(parsed.staging);
+    return true;
+  });
 
   return (
     <div className="ui-developer-page mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -368,15 +393,42 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <h2 className="text-xl font-black italic tracking-tight text-slate-800 flex items-center gap-2">
                 <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
-                APLIKASI TERDAFTAR ({initialClients.length})
+                APLIKASI TERDAFTAR
               </h2>
+
+              {/* Filter Tabs: Semua, Prod, Staging */}
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setFilterEnv("all")}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${filterEnv === "all" ? "bg-white text-slate-900 shadow-sm" : "hover:text-slate-900"}`}
+                >
+                  Semua ({initialClients.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterEnv("production")}
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${filterEnv === "production" ? "bg-emerald-600 text-white shadow-sm" : "hover:text-slate-900"}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${filterEnv === "production" ? "bg-white" : "bg-emerald-500"}`}></span>
+                  Prod ({prodCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterEnv("staging")}
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${filterEnv === "staging" ? "bg-amber-500 text-white shadow-sm" : "hover:text-slate-900"}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${filterEnv === "staging" ? "bg-white" : "bg-amber-400"}`}></span>
+                  Staging ({stagingCount})
+                </button>
+              </div>
             </div>
 
-            {initialClients.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 font-bold">Belum ada kredensial aplikasi yang dibuat.</div>
+            {filteredClients.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 font-bold">Belum ada kredensial aplikasi yang dibuat untuk kategori ini.</div>
             ) : (
               <div className="space-y-4">
-                {initialClients.map((client) => {
+                {filteredClients.map((client) => {
                   const clientEnv = getClientEnvironment(client);
                   const isLocalhost = Boolean(client.allow_localhost);
 
