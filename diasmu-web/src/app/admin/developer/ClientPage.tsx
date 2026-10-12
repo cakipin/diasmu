@@ -100,9 +100,14 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
   const [editAllowLocalhost, setEditAllowLocalhost] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // State untuk In-System Feedback & Confirmation Modal (Rule 16)
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreating(true);
+    setFeedback(null);
     try {
       const result = await createClientAction(appName, redirectUris, allowLocalhost, userEmail, environment);
       if (result.success) {
@@ -114,23 +119,28 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
         setRedirectUris("");
         setEnvironment("production");
         setAllowLocalhost(false);
+        setFeedback({ type: "success", message: "Kredensial aplikasi berhasil dibuat!" });
       } else {
-        alert(result.message || result.error);
+        setFeedback({ type: "error", message: result.message || result.error || "Gagal membuat kredensial." });
       }
     } catch (e) {
       console.error(e);
-      alert("Terjadi kesalahan sistem");
+      setFeedback({ type: "error", message: "Terjadi kesalahan sistem saat menghubungi server." });
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Yakin ingin mencabut akses kredensial ini?")) return;
+  const executeDelete = async () => {
+    if (!deleteConfirmId) return;
     try {
-      await deleteClientAction(id);
+      await deleteClientAction(deleteConfirmId);
+      setFeedback({ type: "success", message: "Akses kredensial berhasil dicabut." });
     } catch (e) {
       console.error(e);
+      setFeedback({ type: "error", message: "Gagal mencabut akses kredensial." });
+    } finally {
+      setDeleteConfirmId(null);
     }
   };
 
@@ -140,6 +150,7 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
     setEditRedirect(client.redirect_uris || "");
     setEditEnvironment(getClientEnvironment(client));
     setEditAllowLocalhost(Boolean(client.allow_localhost));
+    setFeedback(null);
   };
 
   const cancelEdit = () => {
@@ -150,19 +161,23 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
 
   const handleUpdate = async (id: number) => {
     setIsSaving(true);
+    setFeedback(null);
     try {
       const result = await updateClientAction(id, editName, editRedirect, editAllowLocalhost, editEnvironment);
       if (result.success) {
         setEditingId(null);
+        setFeedback({ type: "success", message: "Kredensial berhasil diperbarui." });
       } else {
-        alert(result.message || result.error);
+        setFeedback({ type: "error", message: result.message || result.error || "Gagal memperbarui kredensial." });
       }
     } catch (e) {
       console.error(e);
+      setFeedback({ type: "error", message: "Terjadi kesalahan sistem saat menyimpan." });
     } finally {
       setIsSaving(false);
     }
   };
+
 
   const filteredClients = initialClients.filter((client) => {
     if (filterEnv === "all") return true;
@@ -178,7 +193,31 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
         </div>
       </div>
 
+      {/* FEEDBACK BANNER (RULE 16: PENGGANTI ALERT) */}
+      {feedback && (
+        <div
+          className={`flex items-center justify-between p-4 rounded-2xl border text-xs font-bold animate-in fade-in duration-300 ${
+            feedback.type === "success"
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+              : "bg-red-50 text-red-800 border-red-200"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <span>{feedback.type === "success" ? "✅" : "⚠️"}</span>
+            <span>{feedback.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            className="text-slate-400 hover:text-slate-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* BANNER KREDENSIAL BARU */}
+
       {newCredentials && (
         <div className="bg-green-50 border border-green-200 rounded-3xl p-6 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-2 h-full bg-green-500"></div>
@@ -488,7 +527,7 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
                             </button>
                             <button 
                               type="button"
-                              onClick={() => handleDelete(client.id)}
+                              onClick={() => setDeleteConfirmId(client.id)}
                               className="px-4 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-600 hover:text-white rounded-xl transition-colors"
                             >
                               Cabut Akses
@@ -505,6 +544,36 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
         </div>
 
       </div>
+
+      {/* 🛡️ MODAL KONFIRMASI CABUT AKSES (RULE 16: PENGGANTI WINDOW.CONFIRM) */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 text-center p-8 border border-slate-200">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            </div>
+            <h3 className="text-xl font-black text-slate-800 uppercase italic tracking-tight">Cabut Kredensial?</h3>
+            <p className="text-xs text-slate-500 mt-2 font-medium">Aplikasi client tidak akan dapat melakukan pertukaran token OAuth lagi setelah akses dicabut.</p>
+            <div className="mt-8 flex justify-center gap-3">
+              <button 
+                type="button" 
+                onClick={() => setDeleteConfirmId(null)} 
+                className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+              >
+                Batal
+              </button>
+              <button 
+                type="button" 
+                onClick={executeDelete} 
+                className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-lg transition-colors active:scale-95"
+              >
+                Ya, Cabut Akses
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

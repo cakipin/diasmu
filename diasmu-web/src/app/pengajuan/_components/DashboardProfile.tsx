@@ -14,8 +14,10 @@ export default function DashboardProfile({ userName, userNbm, institution, email
   const apiPayload = {
     userNbm,
     institution,
-    emailInstansi
+    emailInstansi,
+    email_instansi: emailInstansi,
   };
+
 
   return (
     <section className="bg-white p-6 rounded-3xl shadow-xl border border-slate-200">

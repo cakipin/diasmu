@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { apiUrl, jsonAuthHeaders } from "@/lib/security";
 
 export const runtime = "edge";
 
 export async function POST(req: Request) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ success: false, message: "Akses ditolak: Autentikasi diperlukan." }, { status: 401 });
+  }
+
   try {
     const payload = await req.json();
     const { encodedId, dbPayload } = payload;

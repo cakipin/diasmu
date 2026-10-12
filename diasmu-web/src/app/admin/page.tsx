@@ -1,9 +1,11 @@
 import type { Aset } from "@/types/diasmu";
-import { apiUrl, authHeaders } from "@/lib/security";
+import { apiUrl, authHeaders, requireAdminSession } from "@/lib/security";
 
 export const runtime = "edge";
 
 export default async function AdminDashboard() {
+  await requireAdminSession();
+
   let daftarAset: Aset[] = [];
   try {
     const res = await fetch(apiUrl("/api/aset"), { 

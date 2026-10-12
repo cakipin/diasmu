@@ -11,7 +11,9 @@ interface UploadFormWrapperProps extends Omit<React.FormHTMLAttributes<HTMLFormE
 
 export default function UploadFormWrapper({ apiEndpoint, apiPayload, children, className, ...props }: UploadFormWrapperProps) {
   const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const router = useRouter();
+
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -23,6 +25,35 @@ export default function UploadFormWrapper({ apiEndpoint, apiPayload, children, c
 
     const fileTugas = formData.get("suratTugas") as File | null;
     const filePermohonan = formData.get("suratPermohonan") as File | null;
+
+    const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+    const ALLOWED_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+
+    if (fileTugas && fileTugas.size > 0) {
+      if (fileTugas.size > MAX_SIZE) {
+        setLoading(false);
+        setStatusMessage({ type: "error", text: "Ukuran berkas Surat Tugas melebihi batas 2MB. Silakan kompres berkas Anda." });
+        return;
+      }
+      if (!ALLOWED_TYPES.includes(fileTugas.type)) {
+        setLoading(false);
+        setStatusMessage({ type: "error", text: "Format Surat Tugas tidak didukung. Hanya file PDF dan Gambar (PNG/JPG) yang diperbolehkan." });
+        return;
+      }
+    }
+
+    if (filePermohonan && filePermohonan.size > 0) {
+      if (filePermohonan.size > MAX_SIZE) {
+        setLoading(false);
+        setStatusMessage({ type: "error", text: "Ukuran berkas Surat Permohonan melebihi batas 2MB. Silakan kompres berkas Anda." });
+        return;
+      }
+      if (!ALLOWED_TYPES.includes(filePermohonan.type)) {
+        setLoading(false);
+        setStatusMessage({ type: "error", text: "Format Surat Permohonan tidak didukung. Hanya file PDF dan Gambar (PNG/JPG) yang diperbolehkan." });
+        return;
+      }
+    }
 
     try {
       if (fileTugas && fileTugas.size > 0) {
@@ -91,10 +122,10 @@ export default function UploadFormWrapper({ apiEndpoint, apiPayload, children, c
       // Selesai
       form.reset();
       router.refresh();
-      alert("Berhasil!");
+      setStatusMessage({ type: "success", text: "Berkas berhasil diunggah dan disimpan ke sistem!" });
     } catch (err: any) {
       console.error(err);
-      alert("[V3] Gagal saat upload file: " + (err?.message || err));
+      setStatusMessage({ type: "error", text: "Gagal saat upload file: " + (err?.message || err) });
     } finally {
       setLoading(false);
     }
@@ -102,6 +133,25 @@ export default function UploadFormWrapper({ apiEndpoint, apiPayload, children, c
 
   return (
     <form onSubmit={handleSubmit} className={`relative ${className || ""}`} {...props}>
+      {statusMessage && (
+        <div
+          className={`mb-3 p-3 rounded-xl border text-[11px] font-bold flex items-center justify-between ${
+            statusMessage.type === "success"
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+              : "bg-red-50 text-red-800 border-red-200"
+          }`}
+        >
+          <span>{statusMessage.type === "success" ? "✅ " : "⚠️ "}{statusMessage.text}</span>
+          <button
+            type="button"
+            onClick={() => setStatusMessage(null)}
+            className="text-slate-400 hover:text-slate-700 ml-2"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {children}
       {loading && (
         <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl flex-col gap-2 shadow-sm border border-slate-100">
@@ -112,3 +162,4 @@ export default function UploadFormWrapper({ apiEndpoint, apiPayload, children, c
     </form>
   );
 }
+

@@ -1,11 +1,10 @@
-import { auth } from "@/auth";
-import { apiUrl, authHeaders } from "@/lib/security";
+import { apiUrl, authHeaders, requireAdminSession } from "@/lib/security";
 import ClientPage from "./ClientPage";
 
 export const runtime = "edge";
 
 export default async function DeveloperPage() {
-  const session = await auth();
+  const session = await requireAdminSession();
   const userEmail = session?.user?.email || "Admin";
 
   let initialClients = [];

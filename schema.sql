@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS oauth_clients (
     client_id TEXT UNIQUE NOT NULL,
     client_secret TEXT NOT NULL,
     redirect_uris TEXT, -- URL callback aplikasi (dipisahkan koma)
+    environment TEXT DEFAULT 'production', -- production, staging
     allow_localhost BOOLEAN DEFAULT 0,
     created_by TEXT, -- Email pembuat
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -91,3 +92,30 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
     expires_at INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Tabel Super Admin
+CREATE TABLE IF NOT EXISTS admins (
+    nbm TEXT PRIMARY KEY,
+    name TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabel Hak Akses Aset
+CREATE TABLE IF NOT EXISTS asset_permissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain_id INTEGER,
+    user_nbm TEXT NOT NULL,
+    role TEXT DEFAULT 'viewer',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(domain_id) REFERENCES domains(id)
+);
+
+-- Tabel Audit Logs Keamanan Sistem
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    action TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    metadata TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+

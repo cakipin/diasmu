@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { desc, eq, sql } from 'drizzle-orm';
-import { getDb, ssoUsers } from '../db';
+import { getDb, ssoUsers, auditLogs } from '../db';
 
 type Bindings = { DB: D1Database };
 const sso = new Hono<{ Bindings: Bindings }>();
@@ -151,6 +151,52 @@ sso.post('/sync-mock', async (c) => {
       message: 'Berhasil melakukan mirroring 10 user SSO beserta raw data JSON ke D1.',
       syncedCount: mockUsers.length,
     });
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500);
+  }
+});
+
+// ==========================================
+// 4. AUDIT LOGS (Pencatatan & Riwayat Keamanan)
+// ==========================================
+sso.post('/audit-logs', async (c) => {
+  const db = getDb(c.env.DB);
+  try {
+    const { action, actor, metadata } = await c.req.json();
+    if (!action || !actor) {
+      return c.json({ success: false, message: 'Action dan Actor wajib diisi' }, 400);
+    }
+
+    const metadataStr = typeof metadata === 'object' ? JSON.stringify(metadata) : String(metadata || '');
+
+    await db.insert(auditLogs).values({
+      action,
+      actor,
+      metadata: metadataStr,
+    });
+
+    return c.json({ success: true, message: 'Audit log berhasil disimpan' });
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500);
+  }
+});
+
+sso.get('/audit-logs', async (c) => {
+  const db = getDb(c.env.DB);
+  try {
+    const logs = await db
+      .select({
+        id: auditLogs.id,
+        action: auditLogs.action,
+        actor: auditLogs.actor,
+        metadata: auditLogs.metadata,
+        created_at: auditLogs.createdAt,
+      })
+      .from(auditLogs)
+      .orderBy(desc(auditLogs.id))
+      .limit(100);
+
+    return c.json(logs);
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500);
   }

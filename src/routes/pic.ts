@@ -36,28 +36,68 @@ pic.get('/pics', async (c) => {
 pic.post('/pics', async (c) => {
   const db = getDb(c.env.DB);
   try {
-    const { nbm, name, institution, email, phone, surat_tugas, surat_permohonan, catatan, email_instansi } =
-      await c.req.json();
-    if (!name || !institution) return c.json({ success: false }, 400);
+    const body = await c.req.json();
+    const { name, phone, catatan } = body;
+    const nbm = body.nbm || body.userNbm || '';
+    const email = body.email || '';
+    const institution = body.institution || body.nama_instansi;
+    const emailInstansi = body.email_instansi || body.emailInstansi || '';
+    const suratTugas = body.surat_tugas ?? body.suratTugas ?? '';
+    const suratPermohonan = body.surat_permohonan ?? body.suratPermohonan ?? '';
 
-    await db.insert(pics).values({
-      nbm: nbm || email || '-',
-      name,
-      institution,
-      email: email || '',
-      phone: phone || '',
-      suratTugas: surat_tugas || '',
-      suratPermohonan: surat_permohonan || '',
-      catatan: catatan || '',
-      emailInstansi: email_instansi || '',
-      status: 'pending',
-    });
+    if (!name || !institution) {
+      return c.json({ success: false, message: 'Nama dan Instansi wajib diisi' }, 400);
+    }
 
-    return c.json({ success: true });
+    const identifier = nbm || email;
+    if (!identifier) {
+      return c.json({ success: false, message: 'NBM atau Email wajib disertakan' }, 400);
+    }
+
+    // Cek apakah data PIC sudah ada sebelumnya
+    const existing = await db
+      .select({ id: pics.id, status: pics.status })
+      .from(pics)
+      .where(or(eq(pics.nbm, identifier), eq(pics.email, identifier)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Perbarui data yang ada (Upsert)
+      await db
+        .update(pics)
+        .set({
+          name,
+          institution,
+          phone: phone || '',
+          emailInstansi,
+          suratTugas: suratTugas || undefined,
+          suratPermohonan: suratPermohonan || undefined,
+          catatan: catatan || '',
+          status: existing[0].status === 'approved' ? 'approved' : 'pending',
+        })
+        .where(eq(pics.id, existing[0].id));
+    } else {
+      // Insert baru jika belum ada
+      await db.insert(pics).values({
+        nbm: nbm || email || '-',
+        name,
+        institution,
+        email: email || '',
+        phone: phone || '',
+        suratTugas,
+        suratPermohonan,
+        catatan: catatan || '',
+        emailInstansi,
+        status: 'pending',
+      });
+    }
+
+    return c.json({ success: true, message: 'Data pendaftaran PIC berhasil disimpan' });
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500);
   }
 });
+
 
 pic.post('/pics/invite', async (c) => {
   const db = getDb(c.env.DB);
@@ -190,21 +230,29 @@ pic.put('/pics/:nbm', async (c) => {
   const nbm = c.req.param('nbm');
   const db = getDb(c.env.DB);
   try {
-    const { institution, email_instansi, surat_tugas, surat_permohonan } = await c.req.json();
-    if (!institution || !email_instansi) {
-      return c.json({ success: false, message: 'Data tidak lengkap' }, 400);
+    const body = await c.req.json();
+    const institution = body.institution || body.nama_instansi;
+    const emailInstansi = body.email_instansi || body.emailInstansi;
+    const suratTugas = body.surat_tugas ?? body.suratTugas;
+    const suratPermohonan = body.surat_permohonan ?? body.suratPermohonan;
+
+    const updateData: Record<string, any> = {};
+
+    if (institution !== undefined && institution !== null && String(institution).trim() !== '') {
+      updateData.institution = String(institution).trim();
+    }
+    if (emailInstansi !== undefined && emailInstansi !== null && String(emailInstansi).trim() !== '') {
+      updateData.emailInstansi = String(emailInstansi).trim();
+    }
+    if (suratTugas !== undefined && suratTugas !== null) {
+      updateData.suratTugas = String(suratTugas).trim();
+    }
+    if (suratPermohonan !== undefined && suratPermohonan !== null) {
+      updateData.suratPermohonan = String(suratPermohonan).trim();
     }
 
-    const updateData: Record<string, any> = {
-      institution,
-      emailInstansi: email_instansi,
-    };
-
-    if (surat_tugas !== undefined) {
-      updateData.suratTugas = surat_tugas;
-    }
-    if (surat_permohonan !== undefined) {
-      updateData.suratPermohonan = surat_permohonan;
+    if (Object.keys(updateData).length === 0) {
+      return c.json({ success: false, message: 'Tidak ada data perubahan yang dikirim' }, 400);
     }
 
     await db
@@ -212,7 +260,7 @@ pic.put('/pics/:nbm', async (c) => {
       .set(updateData)
       .where(or(eq(pics.nbm, nbm), eq(pics.email, nbm)));
 
-    return c.json({ success: true, message: 'Profil instansi berhasil diperbarui' });
+    return c.json({ success: true, message: 'Profil dan berkas instansi berhasil diperbarui' });
   } catch (e: any) {
     return c.json({ success: false, error: e.message }, 500);
   }

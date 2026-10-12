@@ -26,6 +26,7 @@ developer.get('/clients', async (c) => {
         client_id: oauthClients.clientId,
         client_secret: oauthClients.clientSecret,
         redirect_uris: oauthClients.redirectUris,
+        environment: oauthClients.environment,
         allow_localhost: oauthClients.allowLocalhost,
         created_by: oauthClients.createdBy,
         created_at: oauthClients.createdAt,
@@ -43,7 +44,7 @@ developer.get('/clients', async (c) => {
 developer.post('/clients', async (c) => {
   const db = getDb(c.env.DB);
   try {
-    const { app_name, redirect_uris, allow_localhost, created_by } = await c.req.json();
+    const { app_name, redirect_uris, allow_localhost, created_by, environment } = await c.req.json();
 
     if (!app_name) {
       return c.json({ success: false, message: 'Nama Aplikasi wajib diisi' }, 400);
@@ -58,6 +59,7 @@ developer.post('/clients', async (c) => {
       clientId,
       clientSecret,
       redirectUris: redirect_uris || '',
+      environment: environment === 'staging' ? 'staging' : 'production',
       allowLocalhost: allow_localhost ? 1 : 0,
       createdBy: created_by || '',
     });
@@ -69,6 +71,7 @@ developer.post('/clients', async (c) => {
         app_name,
         client_id: clientId,
         client_secret: clientSecret,
+        environment: environment === 'staging' ? 'staging' : 'production',
       },
     });
   } catch (e: any) {
@@ -81,7 +84,7 @@ developer.put('/clients/:id', async (c) => {
   const id = Number(c.req.param('id'));
   const db = getDb(c.env.DB);
   try {
-    const { app_name, redirect_uris, allow_localhost } = await c.req.json();
+    const { app_name, redirect_uris, allow_localhost, environment } = await c.req.json();
 
     if (!app_name) {
       return c.json({ success: false, message: 'Nama Aplikasi wajib diisi' }, 400);
@@ -92,6 +95,7 @@ developer.put('/clients/:id', async (c) => {
       .set({
         appName: app_name,
         redirectUris: redirect_uris || '',
+        environment: environment === 'staging' ? 'staging' : 'production',
         allowLocalhost: allow_localhost ? 1 : 0,
       })
       .where(eq(oauthClients.id, id));
@@ -101,6 +105,7 @@ developer.put('/clients/:id', async (c) => {
     return c.json({ success: false, error: e.message }, 500);
   }
 });
+
 
 // 4. DELETE CLIENT
 developer.delete('/clients/:id', async (c) => {

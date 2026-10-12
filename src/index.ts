@@ -45,8 +45,9 @@ app.use('/api/*', async (c, next) => {
 
 // ==========================================
 // ENDPOINT AKSES FILE PUBLIK R2 (Tanpa Auth)
+// Mendukung /public/files/:filename dan alias /api/download/:filename
 // ==========================================
-app.get('/public/files/:filename', async (c) => {
+const handleFileStream = async (c: any) => {
   try {
     const filename = c.req.param('filename');
     const object = await c.env.BUCKET.get(filename);
@@ -56,12 +57,17 @@ app.get('/public/files/:filename', async (c) => {
     object.writeHttpMetadata(headers);
     headers.set('etag', object.httpEtag);
     headers.set('Access-Control-Allow-Origin', '*');
+    headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
     
     return new Response(object.body, { headers });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
   }
-});
+};
+
+app.get('/public/files/:filename', handleFileStream);
+app.get('/api/download/:filename', handleFileStream);
+
 
 // ==========================================
 // KEMBALIKAN FITUR UPLOAD LAMPIRAN KE R2
@@ -72,9 +78,26 @@ app.post('/api/upload', async (c) => {
     const file = formData.get('document');
     if (!(file instanceof File)) return c.json({ success: false, message: "File tidak valid" }, 400);
 
+    // 🛡️ 1. BATAS UKURAN MAKSIMAL 2MB
+    const MAX_SIZE = 2 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      return c.json({ success: false, message: "Ukuran berkas melebihi batas maksimal 2MB" }, 400);
+    }
+
+    // 🛡️ 2. ALLOW-LIST MIME TYPE & EKSTENSI HANYA PDF DAN GAMBAR
+    const allowedMime = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+    const lowerName = file.name.toLowerCase();
+    const allowedExts = ['.pdf', '.png', '.jpg', '.jpeg'];
+    const hasValidExt = allowedExts.some(ext => lowerName.endsWith(ext));
+
+    if (!allowedMime.includes(file.type.toLowerCase()) || !hasValidExt) {
+      return c.json({ success: false, message: "Hanya berkas format PDF, PNG, atau JPG yang diizinkan" }, 400);
+    }
+
     const timestamp = Date.now();
     const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
     const uniqueFilename = `${timestamp}-${safeName}`;
+
 
     await c.env.BUCKET.put(uniqueFilename, file, {
       httpMetadata: { contentType: file.type },

@@ -1,7 +1,6 @@
-import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { apiUrl, authHeaders } from "@/lib/security";
+import { apiUrl, authHeaders, requireAdminSession } from "@/lib/security";
 import type { PicInfo, Aset } from "@/types/diasmu";
 import UploadFormWrapper from "@/components/UploadFormWrapper";
 
@@ -12,8 +11,7 @@ type Props = {
 };
 
 export default async function PicProfilePage(props: Props) {
-  const session = await auth();
-  if (!session) redirect("/login");
+  await requireAdminSession();
 
   const params = await props.params;
   const nbm = params.nbm;

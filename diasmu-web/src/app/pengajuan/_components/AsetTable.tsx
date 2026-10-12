@@ -31,6 +31,11 @@ export default function AsetTable({ asetHandled, referenceDate }: { asetHandled:
   const [isPending, startTransition] = useTransition();
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
 
+  // 🛡️ MODAL AUDIT ALASAN BUKA KREDENSIAL (RULE 16: ANTI-WINDOW.PROMPT)
+  const [promptTarget, setPromptTarget] = useState<{ key: string; aset: Aset } | null>(null);
+  const [auditReasonInput, setAuditReasonInput] = useState("");
+  const [auditReasonError, setAuditReasonError] = useState("");
+
   // 🔎 STATES BARU: SEARCH, FILTER, & PAGINATION
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -43,22 +48,38 @@ export default function AsetTable({ asetHandled, referenceDate }: { asetHandled:
     }
   }, [shareAset]);
 
-  const togglePassword = async (key: string, aset: Aset) => {
+  const togglePassword = (key: string, aset: Aset) => {
     if (showPasswords[key]) {
       setShowPasswords(prev => ({ ...prev, [key]: false }));
       return;
     }
 
-    const reason = window.prompt("Tuliskan alasan membuka kredensial ini untuk audit keamanan:");
-    if (!reason || reason.trim().length < 8) {
-      setCredentialError("Alasan minimal 8 karakter diperlukan sebelum kredensial dibuka.");
+    // Buka Modal In-System untuk Meminta Alasan
+    setAuditReasonInput("");
+    setAuditReasonError("");
+    setPromptTarget({ key, aset });
+  };
+
+  const handleConfirmAuditReason = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promptTarget) return;
+
+    const trimmed = auditReasonInput.trim();
+    if (trimmed.length < 8) {
+      setAuditReasonError("Alasan minimal 8 karakter diperlukan sebelum kredensial dibuka.");
       return;
     }
 
-    await logCredentialReveal(aset.id, key, reason.trim());
-    setCredentialError("");
-    setShowPasswords(prev => ({ ...prev, [key]: true }));
+    try {
+      await logCredentialReveal(promptTarget.aset.id, promptTarget.key, trimmed);
+      setCredentialError("");
+      setShowPasswords(prev => ({ ...prev, [promptTarget.key]: true }));
+      setPromptTarget(null);
+    } catch {
+      setAuditReasonError("Gagal mencatat audit log, coba lagi.");
+    }
   };
+
 
   const handleEditSubmit = (formData: FormData) => {
     startTransition(async () => {
@@ -473,6 +494,74 @@ export default function AsetTable({ asetHandled, referenceDate }: { asetHandled:
           </div>
         </div>
       )}
+
+      {/* 🛡️ MODAL IN-SYSTEM 5: INPUT ALASAN AUDIT KREDENSIAL (RULE 16: PENGGANTI WINDOW.PROMPT) */}
+      {promptTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 border border-slate-200">
+            <div className="p-6 bg-[#004282] text-white flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                </div>
+                <h3 className="font-black italic uppercase tracking-wider text-sm">Audit Keamanan Kredensial</h3>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setPromptTarget(null)} 
+                className="text-white/70 hover:text-white"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmAuditReason} className="p-6 space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-xs font-medium text-blue-900">
+                <p className="font-bold mb-1">Aset: {promptTarget.aset.domain_name}</p>
+                <p className="text-[11px] text-blue-700">Untuk mematuhi protokol audit persyarikatan, pembukaan kredensial akan dicatat secara permanen di log keamanan sistem.</p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-700 uppercase tracking-widest mb-1.5">
+                  Alasan Membuka Kredensial <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={auditReasonInput}
+                  onChange={(e) => setAuditReasonInput(e.target.value)}
+                  placeholder="Contoh: Pembaruan sertifikat SSL / rotasi password server..."
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-[#004282] outline-none transition-all resize-none text-slate-800"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Minimal 8 karakter penjelasan aktivitas.</p>
+              </div>
+
+              {auditReasonError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-600">
+                  ⚠️ {auditReasonError}
+                </div>
+              )}
+
+              <div className="pt-2 flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setPromptTarget(null)}
+                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-[#004282] hover:bg-blue-900 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+                >
+                  Buka Kredensial
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
+

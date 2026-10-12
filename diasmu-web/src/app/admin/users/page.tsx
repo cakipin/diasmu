@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import NbmWarning from "../_components/NbmWarning";
 import { revalidatePath } from "next/cache";
 import type { AdminUser, PicUser, SsoUser } from "@/types/diasmu";
-import { apiUrl, auditLog, authHeaders } from "@/lib/security";
+import { apiUrl, auditLog, authHeaders, requireAdminSession } from "@/lib/security";
 import Link from "next/link";
 import SsoHistoryTable from "./SsoHistoryTable";
 import PicStatusSwitch from "./PicStatusSwitch";
@@ -11,28 +11,36 @@ import InviteUserForm from "./InviteUserForm";
 export const runtime = "edge";
 
 export default async function UsersManagementPage() {
-  const session = await auth();
+  const session = await requireAdminSession();
   const userNbm = session?.user?.nbm || session?.user?.email;
 
   async function deleteAdmin(formData: FormData) {
     "use server";
+    const currentSession = await requireAdminSession();
+    const currentActor = currentSession?.user?.nbm || currentSession?.user?.email;
     const nbm = formData.get("nbm");
+    if (!nbm) return;
+
     await fetch(apiUrl(`/api/admins/${nbm}`), { 
       method: "DELETE",
       headers: authHeaders()
     });
-    await auditLog("admin.removed", { actor: userNbm, targetUser: String(nbm || "") });
+    await auditLog("admin.removed", { actor: currentActor, targetUser: String(nbm || "") });
     revalidatePath("/admin/users");
   }
 
   async function deletePic(formData: FormData) {
     "use server";
+    const currentSession = await requireAdminSession();
+    const currentActor = currentSession?.user?.nbm || currentSession?.user?.email;
     const id = formData.get("id");
+    if (!id) return;
+
     await fetch(apiUrl(`/api/pics/${id}`), { 
       method: "DELETE",
       headers: authHeaders()
     });
-    await auditLog("pic.deleted", { actor: userNbm, picId: String(id || "") });
+    await auditLog("pic.deleted", { actor: currentActor, picId: String(id || "") });
     revalidatePath("/admin/users");
   }
 

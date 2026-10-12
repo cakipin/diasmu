@@ -67,10 +67,12 @@ export const oauthClients = sqliteTable('oauth_clients', {
   clientId: text('client_id').unique().notNull(),
   clientSecret: text('client_secret').notNull(),
   redirectUris: text('redirect_uris'),
+  environment: text('environment').default('production'),
   createdBy: text('created_by'),
   createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
   allowLocalhost: integer('allow_localhost').default(0),
 });
+
 
 // 7. Tabel OAuth Authorization Codes
 export const oauthCodes = sqliteTable('oauth_codes', {
@@ -115,3 +117,13 @@ export const assetPermissions = sqliteTable('asset_permissions', {
   role: text('role').default('viewer'),
   createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
 });
+
+// 11. Tabel Audit Logs Keamanan Sistem
+export const auditLogs = sqliteTable('audit_logs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  action: text('action').notNull(),
+  actor: text('actor').notNull(),
+  metadata: text('metadata'),
+  createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
+});
+

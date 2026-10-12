@@ -66,13 +66,37 @@ oauth.post('/code', async (c) => {
     }
 
     // Validasi: apakah redirect_uri cocok dengan yang terdaftar?
-    const allowedUris = (client.redirectUris || '').split(',').map((u) => u.trim());
-    let isRedirectValid = allowedUris.some((u) => redirect_uri.startsWith(u));
+    const allowedUris = (client.redirectUris || '')
+      .split(',')
+      .map((u) => u.trim())
+      .filter((u) => u.length > 0);
 
-    // Whitelist Localhost (bisa bernilai 1, "1", atau true)
-    if (client.allowLocalhost && redirect_uri.startsWith('http://localhost')) {
-      isRedirectValid = true;
+    let isRedirectValid = false;
+    try {
+      const targetUrl = new URL(redirect_uri);
+      
+      // Cek apakah exact match atau mencocokkan origin + path yang diawali secara terisolasi
+      isRedirectValid = allowedUris.some((u) => {
+        try {
+          const registeredUrl = new URL(u);
+          return (
+            targetUrl.origin === registeredUrl.origin &&
+            (targetUrl.pathname === registeredUrl.pathname ||
+              targetUrl.pathname.startsWith(registeredUrl.pathname.endsWith('/') ? registeredUrl.pathname : `${registeredUrl.pathname}/`))
+          );
+        } catch {
+          return redirect_uri === u;
+        }
+      });
+
+      // Whitelist Localhost (bisa bernilai 1, "1", atau true)
+      if (client.allowLocalhost && (targetUrl.hostname === 'localhost' || targetUrl.hostname === '127.0.0.1')) {
+        isRedirectValid = true;
+      }
+    } catch {
+      isRedirectValid = false;
     }
+
     if (!isRedirectValid) {
       return c.json(
         {
@@ -82,6 +106,7 @@ oauth.post('/code', async (c) => {
         400
       );
     }
+
 
     // Generate authorization code (expired 5 menit)
     const code = generateRandomString(48);

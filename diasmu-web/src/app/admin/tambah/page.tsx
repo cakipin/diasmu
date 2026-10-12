@@ -1,6 +1,9 @@
+import { requireAdminSession } from "@/lib/security";
+
 export const runtime = "edge";
 
-export default function TambahAsetPage() {
+export default async function TambahAsetPage() {
+  await requireAdminSession();
   return (
     <div className="max-w-3xl mx-auto">
       <section className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
