@@ -10,19 +10,21 @@ type OAuthClient = {
   client_secret: string;
   redirect_uris: string;
   allow_localhost: boolean | number;
-  environment?: "production" | "staging" | string;
+  environment?: "all" | "production" | "staging" | string;
   created_by: string;
   created_at: string;
 };
 
-// Helper untuk mendeteksi status environment jika belum diset eksplisit
-function getClientEnvironment(client: OAuthClient): "staging" | "production" {
+// Helper untuk mendeteksi status environment
+function getClientEnvironment(client: OAuthClient): "all" | "staging" | "production" {
+  if (client.environment === "all") return "all";
   if (client.environment === "staging") return "staging";
   if (client.environment === "production") return "production";
   const uris = (client.redirect_uris || "").toLowerCase();
-  if (uris.includes("staging") || uris.includes("dev") || uris.includes("preview")) {
-    return "staging";
-  }
+  const hasStaging = uris.includes("staging") || uris.includes("dev") || uris.includes(".pages.dev");
+  const hasProd = uris.includes(".or.id") || uris.includes(".id") || uris.includes("prod");
+  if (hasStaging && hasProd) return "all";
+  if (hasStaging) return "staging";
   return "production";
 }
 
@@ -84,7 +86,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 export default function ClientPage({ initialClients, userEmail }: { initialClients: OAuthClient[]; userEmail: string }) {
   const [appName, setAppName] = useState("");
   const [redirectUris, setRedirectUris] = useState("");
-  const [environment, setEnvironment] = useState<"production" | "staging">("production");
+  const [environment, setEnvironment] = useState<"all" | "production" | "staging">("all");
   const [allowLocalhost, setAllowLocalhost] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newCredentials, setNewCredentials] = useState<{ client_id: string; client_secret: string } | null>(null);
@@ -96,7 +98,7 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editRedirect, setEditRedirect] = useState("");
-  const [editEnvironment, setEditEnvironment] = useState<"production" | "staging">("production");
+  const [editEnvironment, setEditEnvironment] = useState<"all" | "production" | "staging">("all");
   const [editAllowLocalhost, setEditAllowLocalhost] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -181,7 +183,9 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
 
   const filteredClients = initialClients.filter((client) => {
     if (filterEnv === "all") return true;
-    return getClientEnvironment(client) === filterEnv;
+    const env = getClientEnvironment(client);
+    if (env === "all") return true; // Aplikasi terpadu (Prod & Staging) tampil di kedua filter
+    return env === filterEnv;
   });
 
   return (
@@ -254,35 +258,54 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
             </h2>
             
             <div className="space-y-5">
-              {/* Pilihan Opsi Prod & Staging */}
+              {/* Pilihan Opsi Prod & Staging (Model A: Unified Key) */}
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Tipe Lingkungan (Environment)</label>
-                <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setEnvironment("all")}
+                    className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
+                      environment === "all"
+                        ? "bg-[#003870] text-white shadow-md shadow-blue-950/20"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                    Prod &amp; Staging
+                  </button>
                   <button
                     type="button"
                     onClick={() => setEnvironment("production")}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
                       environment === "production"
                         ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
                         : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
-                    <span className={`w-2 h-2 rounded-full ${environment === "production" ? "bg-white" : "bg-emerald-500"}`}></span>
-                    Production
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
+                    Prod Only
                   </button>
                   <button
                     type="button"
                     onClick={() => setEnvironment("staging")}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    className={`py-2 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
                       environment === "staging"
                         ? "bg-amber-500 text-white shadow-md shadow-amber-600/20"
                         : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
-                    <span className={`w-2 h-2 rounded-full ${environment === "staging" ? "bg-white" : "bg-amber-400"}`}></span>
-                    Staging
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-300"></span>
+                    Staging Only
                   </button>
                 </div>
+                <p className="text-[10px] text-slate-400 mt-1.5">
+                  {environment === "all" 
+                    ? "✨ 1 Kredensial (Key & Secret) berlaku bersama untuk Production & Staging."
+                    : environment === "production"
+                    ? "Kredensial khusus lingkungan Production."
+                    : "Kredensial khusus lingkungan Staging / Development."}
+                </p>
               </div>
 
               <div>
@@ -387,30 +410,42 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
                           {/* Opsi Prod vs Staging saat Edit */}
                           <div>
                             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tipe Lingkungan (Environment)</label>
-                            <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 max-w-xs">
+                            <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                              <button
+                                type="button"
+                                onClick={() => setEditEnvironment("all")}
+                                className={`py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
+                                  editEnvironment === "all"
+                                    ? "bg-[#003870] text-white shadow-md shadow-blue-950/20"
+                                    : "text-slate-600 hover:text-slate-900"
+                                }`}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                                Prod &amp; Staging
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => setEditEnvironment("production")}
-                                className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                                className={`py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
                                   editEnvironment === "production"
                                     ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
                                     : "text-slate-600 hover:text-slate-900"
                                 }`}
                               >
-                                <span className={`w-2 h-2 rounded-full ${editEnvironment === "production" ? "bg-white" : "bg-emerald-500"}`}></span>
-                                Production
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
+                                Prod Only
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setEditEnvironment("staging")}
-                                className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                                className={`py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
                                   editEnvironment === "staging"
                                     ? "bg-amber-500 text-white shadow-md shadow-amber-600/20"
                                     : "text-slate-600 hover:text-slate-900"
                                 }`}
                               >
-                                <span className={`w-2 h-2 rounded-full ${editEnvironment === "staging" ? "bg-white" : "bg-amber-400"}`}></span>
-                                Staging
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-300"></span>
+                                Staging Only
                               </button>
                             </div>
                           </div>
@@ -470,8 +505,13 @@ export default function ClientPage({ initialClients, userEmail }: { initialClien
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-bold text-slate-800 text-lg">{client.app_name}</h3>
                               
-                              {/* Badge Environment: Prod vs Staging */}
-                              {clientEnv === "production" ? (
+                              {/* Badge Environment: Prod & Staging (Model A) vs Prod vs Staging */}
+                              {clientEnv === "all" ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-900 border border-blue-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
+                                  PROD &amp; STAGING
+                                </span>
+                              ) : clientEnv === "production" ? (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                                   PROD

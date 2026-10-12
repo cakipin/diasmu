@@ -54,12 +54,14 @@ developer.post('/clients', async (c) => {
     const clientId = 'client_' + generateRandomString(24);
     const clientSecret = generateRandomString(64);
 
+    const envVal = environment === 'all' ? 'all' : (environment === 'staging' ? 'staging' : 'production');
+
     await db.insert(oauthClients).values({
       appName: app_name,
       clientId,
       clientSecret,
       redirectUris: redirect_uris || '',
-      environment: environment === 'staging' ? 'staging' : 'production',
+      environment: envVal,
       allowLocalhost: allow_localhost ? 1 : 0,
       createdBy: created_by || '',
     });
@@ -71,7 +73,7 @@ developer.post('/clients', async (c) => {
         app_name,
         client_id: clientId,
         client_secret: clientSecret,
-        environment: environment === 'staging' ? 'staging' : 'production',
+        environment: envVal,
       },
     });
   } catch (e: any) {
@@ -90,12 +92,14 @@ developer.put('/clients/:id', async (c) => {
       return c.json({ success: false, message: 'Nama Aplikasi wajib diisi' }, 400);
     }
 
+    const envVal = environment === 'all' ? 'all' : (environment === 'staging' ? 'staging' : 'production');
+
     await db
       .update(oauthClients)
       .set({
         appName: app_name,
         redirectUris: redirect_uris || '',
-        environment: environment === 'staging' ? 'staging' : 'production',
+        environment: envVal,
         allowLocalhost: allow_localhost ? 1 : 0,
       })
       .where(eq(oauthClients.id, id));

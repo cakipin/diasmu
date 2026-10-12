@@ -8,7 +8,7 @@ export async function createClientAction(
   redirectUris: string,
   allowLocalhost: boolean,
   createdBy: string,
-  environment: "production" | "staging" = "production"
+  environment: "all" | "production" | "staging" = "all"
 ) {
   const res = await fetch(apiUrl("/api/developer/clients"), {
     method: "POST",
@@ -40,7 +40,7 @@ export async function updateClientAction(
   appName: string,
   redirectUris: string,
   allowLocalhost: boolean,
-  environment: "production" | "staging" = "production"
+  environment: "all" | "production" | "staging" = "all"
 ) {
   const res = await fetch(apiUrl(`/api/developer/clients/${id}`), {
     method: "PUT",
