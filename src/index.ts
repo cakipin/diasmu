@@ -44,8 +44,8 @@ app.use('/api/*', async (c, next) => {
 });
 
 // ==========================================
-// ENDPOINT AKSES FILE PUBLIK R2 (Tanpa Auth)
-// Mendukung /public/files/:filename dan alias /api/download/:filename
+// ENDPOINT AKSES FILE R2 (Wajib Auth Bearer)
+// Dipindahkan ke /api/files/:filename di bawah middleware DIASMU_SECRET_TOKEN
 // ==========================================
 const handleFileStream = async (c: any) => {
   try {
@@ -65,8 +65,7 @@ const handleFileStream = async (c: any) => {
   }
 };
 
-app.get('/public/files/:filename', handleFileStream);
-app.get('/api/download/:filename', handleFileStream);
+app.get('/api/files/:filename', handleFileStream);
 
 
 // ==========================================

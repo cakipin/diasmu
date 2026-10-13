@@ -56,7 +56,7 @@ export default function DashboardProfile({ userName, userNbm, institution, email
             {suratTugas && (
               <p className="mt-1 text-xs text-emerald-600 font-semibold flex items-center gap-1">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                File saat ini: <a href={apiUrl(`/public/files/${suratTugas}`)} target="_blank" rel="noreferrer" className="underline hover:text-emerald-700">Lihat File</a>
+                File saat ini: <a href={`/api/files/${encodeURIComponent(suratTugas)}`} target="_blank" rel="noreferrer" className="underline hover:text-emerald-700">Lihat File</a>
               </p>
             )}
           </div>
@@ -66,7 +66,7 @@ export default function DashboardProfile({ userName, userNbm, institution, email
             {suratPermohonan && (
               <p className="mt-1 text-xs text-blue-600 font-semibold flex items-center gap-1">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                File saat ini: <a href={apiUrl(`/public/files/${suratPermohonan}`)} target="_blank" rel="noreferrer" className="underline hover:text-blue-700">Lihat File</a>
+                File saat ini: <a href={`/api/files/${encodeURIComponent(suratPermohonan)}`} target="_blank" rel="noreferrer" className="underline hover:text-blue-700">Lihat File</a>
               </p>
             )}
           </div>
