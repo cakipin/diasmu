@@ -68,6 +68,7 @@ export async function submitPengajuanAset(formData: FormData) {
     payload.jenisAkun = formData.get("jenisAkun");
     payload.namaLayanan = formData.get("namaLayanan");
     payload.ipAddressAkun = formData.get("ipAddressAkun");
+    payload.linkGithub = formData.get("linkGithub");
     payload.usernameAkun = formData.get("usernameAkun");
     payload.passwordAkun = formData.get("passwordAkun");
     payload.emailTertaut = formData.get("emailTertaut");
